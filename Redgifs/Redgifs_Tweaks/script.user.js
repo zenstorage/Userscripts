@@ -6,7 +6,7 @@
 // @grant               GM_download
 // @grant               GM_addStyle
 // @run-at              document-start
-// @version             0.4.5
+// @version             0.4.5.1
 // @author              hdyzen
 // @description         tweaks for redgifs page
 // @license             MIT
@@ -113,4 +113,4 @@ observer.observe(document.documentElement, {
     subtree: true,
 });
 
-GM_addStyle('.topNav-wrap > :not([class]) { visibility: hidden !important; } .download-progress-bar::before { position: absolute; height: 100%; background-color: #fff; content: "" ; width: var(--progress-bar, 0%); transition: .3s ease; }');
+GM_addStyle('.topNav-wrap > :not([class]) { visibility: hidden !important; } .SideBar-Item:has(> [class*="liveAdButton"]), [rel*="sponsored"] { display: none !important; } .download-progress-bar::before { position: absolute; height: 100%; background-color: #fff; content: "" ; width: var(--progress-bar, 0%); transition: .3s ease; }');
