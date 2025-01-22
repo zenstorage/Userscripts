@@ -5,7 +5,7 @@
 // @grant           none
 // @version         1.0
 // @run-at          document-start
-// @license 		GPL-3.0
+// @license         GPL-3.0
 // @author          hdyzen
 // @description     This script uses the farside.link gateway to redirect images direcly on reddit
 // ==/UserScript==
