@@ -45,6 +45,7 @@ const commands = {
 async function init() {
     if (domain === "www.redgifs.com") {
         patchJSONParse();
+        patchVideoPlay();
 
         await initCommands();
 
@@ -82,12 +83,6 @@ async function initVideo() {
 
     if (getState("openLink")) {
         video.parentElement.removeAttribute("href");
-    }
-
-    if (!getState("autoplay")) {
-        video.addEventListener("canplay", () => {
-            video.pause();
-        });
     }
 }
 
@@ -226,6 +221,20 @@ function patchJSONParse() {
         }
 
         return result;
+    };
+}
+
+function patchVideoPlay() {
+    const originalPlay = HTMLVideoElement.prototype.play;
+
+    HTMLVideoElement.prototype.play = function () {
+        const stackTrace = new Error().stack;
+
+        if (!getState("autoplay") && stackTrace.includes("loadsuccess")) {
+            return Promise.reject(new Error("Autoplay disabled"));
+        }
+
+        return originalPlay.call(this);
     };
 }
 
