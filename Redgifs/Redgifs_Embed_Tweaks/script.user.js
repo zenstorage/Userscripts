@@ -139,7 +139,7 @@ function interVideo(videoElement) {
     videoElement.play = function () {
         const stackTrace = new Error().stack;
 
-        if (!intersecting && stackTrace.includes("loadsuccess")) {
+        if (!intersecting && stackTrace.includes("emit")) {
             return Promise.reject(new Error("Prevent video autoplay when not visible"));
         }
 
@@ -264,7 +264,8 @@ function patchVideoPlay() {
     HTMLVideoElement.prototype.play = function () {
         const stackTrace = new Error().stack;
 
-        if (!getState("autoplay") && stackTrace.includes("loadsuccess")) {
+        if (!getState("autoplay") && stackTrace.includes("emit")) {
+            this.pause();
             return Promise.reject(new Error("Autoplay disabled"));
         }
 
