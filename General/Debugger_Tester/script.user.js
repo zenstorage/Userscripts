@@ -147,4 +147,4 @@ function patchConsole() {
         });
     }
 }
-// patchConsole();
+patchConsole();
