@@ -2,6 +2,8 @@
 // @name            Redgifs Embed Tweaks
 // @namespace       https://greasyfork.org/pt-BR/users/821661
 // @match           https://www.redgifs.com/ifr/*
+// @match           https://www.reddit.com/*
+// @match           https://lemmynsfw.com/*
 // @grant           GM.xmlHttpRequest
 // @grant           GM.addStyle
 // @grant           GM.setValue
@@ -14,6 +16,8 @@
 // @description     tweaks redgifs embed/iframe video
 // @license         MIT
 // ==/UserScript==
+
+const domain = window.location.hostname;
 
 const commands = {
     autoplay: {
@@ -39,15 +43,19 @@ const commands = {
 };
 
 async function init() {
-    patchJSONParse();
+    if (domain === "www.redgifs.com") {
+        patchJSONParse();
 
-    await initCommands();
+        await initCommands();
 
-    initVideo();
-    initPrefs();
-    prefsMonitor();
-    downloadVisible();
-    hideBloat();
+        initVideo();
+        initPrefs();
+        prefsMonitor();
+        downloadVisible();
+        hideBloat();
+    } else {
+        downloadOnTop();
+    }
 }
 init();
 
@@ -91,7 +99,7 @@ async function initPrefs() {
 
     if (isHD) {
         const sdButton = await asyncQuerySelector(".button:has([d^='M7.773'])");
-        sdButton?.click();
+        sdButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     }
 
     if (isMuted) {
@@ -112,10 +120,10 @@ async function prefsMonitor() {
         if (e.target.closest(".soundOn")) {
             localStorage.removeItem("muted");
         }
-        if (e.target.closest(".gifQuality [d^='M7.773']")) {
+        if (e.target.closest(".gifQuality:has(> [d^='M7.773'])")) {
             localStorage.setItem("hd", "1");
         }
-        if (e.target.closest(".gifQuality [d^='M1.16712']")) {
+        if (e.target.closest(".gifQuality:has(> [d^='M1.16712'])")) {
             localStorage.removeItem("hd");
         }
     });
@@ -139,30 +147,27 @@ function addDownloadEntries(arr) {
         if (e.target.classList.contains("download-button") || e.target.nodeName === "svg" || e.target.nodeName === "path") {
             downloadButton.lastElementChild.classList.toggle("hidden");
         } else {
-            console.log(e.target);
-            downloadAsBlob(e.target.dataset.url);
+            if (isInIframe()) {
+                window.parent.postMessage({ url: e.target.dataset.url }, "*");
+            } else {
+                downloadAsBlob(e.target.dataset.url);
+            }
         }
     });
 
     document.body.appendChild(downloadButton);
 }
 
-async function downloadAsBlob(urlD) {
+async function downloadAsBlob(vUrl) {
     try {
-        const response = await GM.xmlHttpRequest({
-            url: urlD,
+        const res = await GM.xmlHttpRequest({
+            url: vUrl,
             responseType: "blob",
-            onerror: e => {
-                throw new Error("Network response error: ", e);
-            },
-            onload: e => {
-                console.log("Load", e);
-            },
         });
 
-        const url = URL.createObjectURL(response.response);
+        const url = URL.createObjectURL(res.response);
         const link = document.createElement("a");
-        const nameVideo = urlD.split("/").at(-1);
+        const nameVideo = vUrl.split("/").at(-1);
 
         link.href = url;
         link.download = nameVideo;
@@ -179,8 +184,20 @@ async function downloadAsBlob(urlD) {
     }
 }
 
+function downloadOnTop() {
+    window.addEventListener("message", e => {
+        if (!e.data?.url) return;
+
+        downloadAsBlob(e.data?.url);
+    });
+}
+
 function downloadVisible() {
     if (getState("downloadButton")) GM.addStyle(".download-button { display: block }");
+}
+
+function isInIframe() {
+    return window !== window.parent;
 }
 
 function hideBloat() {
@@ -205,8 +222,6 @@ function patchJSONParse() {
             const urls = Object.entries(result.gif.urls);
             const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
 
-            downloadAsBlob(urls.hd);
-
             addDownloadEntries(ext);
         }
 
@@ -218,7 +233,7 @@ GM.addStyle(`
     .hidden {
         pointer-events: none;
         opacity: 0;
-        overflow: hiddem;
+        overflow: hidden;
     }
     .download-button {
         display: none;
