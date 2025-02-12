@@ -32,6 +32,10 @@ const commands = {
         label: "Save prefs",
         state: true,
     },
+    pauseVideo: {
+        label: "Pause video when not visible",
+        state: true,
+    },
     downloadButton: {
         label: "Download button",
         state: true,
@@ -84,6 +88,10 @@ async function initVideo() {
     if (getState("openLink")) {
         video.parentElement.removeAttribute("href");
     }
+
+    if (getState("pauseVideo")) {
+        interVideo(video);
+    }
 }
 
 async function initPrefs() {
@@ -122,6 +130,17 @@ async function prefsMonitor() {
             localStorage.removeItem("hd");
         }
     });
+}
+
+function interVideo(videoElement) {
+    const handleIntersection = ([entry]) => {
+        if (!entry.isIntersecting && !videoElement.paused) {
+            videoElement.pause();
+        }
+    };
+    const observer = new IntersectionObserver(handleIntersection, { threshold: 0.4 });
+
+    observer.observe(videoElement);
 }
 
 function addDownloadEntries(arr) {
