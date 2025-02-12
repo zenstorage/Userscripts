@@ -133,10 +133,25 @@ async function prefsMonitor() {
 }
 
 function interVideo(videoElement) {
+    let intersecting = true;
+    const originalPlay = videoElement.play;
+
+    videoElement.play = function () {
+        const stackTrace = new Error().stack;
+
+        if (!intersecting && stackTrace.includes("loadsuccess")) {
+            return Promise.reject(new Error("Prevent video autoplay when not visible"));
+        }
+
+        return originalPlay.call(this);
+    };
+
     const handleIntersection = ([entry]) => {
-        if (!entry.isIntersecting && !videoElement.paused) {
+        if (!entry.isIntersecting) {
             videoElement.pause();
         }
+
+        intersecting = entry.isIntersecting;
     };
     const observer = new IntersectionObserver(handleIntersection, { threshold: 0.4 });
 
