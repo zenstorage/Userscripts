@@ -188,19 +188,19 @@ function addDownloadEntries(arr) {
 
     downloadButton.addEventListener("click", e => {
         const downloadOpen = e.target.closest(".download-svg");
-        const download = e.target.closest(".download-dw");
-        const copy = e.target.closest(".copy-button");
+        if (downloadOpen) {
+            return downloadButton.lastElementChild.classList.toggle("hidden");
+        }
 
+        const download = e.target.closest(".download-dw");
         if (download) {
-            if (isInIframe()) {
-                window.parent.postMessage({ url: download.parentElement.dataset.url }, "*");
-            } else {
-                downloadAsBlob(download.parentElement.dataset.url);
-            }
-        } else if (copy) {
-            navigator.clipboard.writeText(copy.parentElement.dataset.url);
-        } else if (downloadOpen) {
-            downloadButton.lastElementChild.classList.toggle("hidden");
+            const url = download.parentElement.dataset.url;
+            return downloadAsBlob(url);
+        }
+
+        const copy = e.target.closest(".copy-button");
+        if (copy) {
+            return navigator.clipboard.writeText(copy.parentElement.dataset.url);
         }
     });
 
@@ -208,6 +208,10 @@ function addDownloadEntries(arr) {
 }
 
 async function downloadAsBlob(vUrl) {
+    if (isInIframe()) {
+        return window.parent.postMessage({ url: vUrl }, "*");
+    }
+
     try {
         const res = await GM.xmlHttpRequest({
             url: vUrl,
@@ -234,16 +238,7 @@ async function downloadAsBlob(vUrl) {
 }
 
 function downloadOnTop() {
-    window.addEventListener("message", e => {
-        if (!e.data?.url) return;
-
-        if (isInIframe()) {
-            window.parent.postMessage({ url: e.data.url }, "*");
-            return;
-        }
-
-        downloadAsBlob(e.data?.url);
-    });
+    window.addEventListener("message", e => (e.data.url ? downloadAsBlob(e.data?.url) : null));
 }
 
 function downloadVisible() {
@@ -308,8 +303,8 @@ function initCSS() {
         #downloadOpen {
             display: none;
             position: fixed; 
-            bottom: 1.5rem; 
-            right: 1.5rem; 
+            bottom: 2rem; 
+            right: 1rem; 
             user-select: none;
 
             & > .download-svg {
