@@ -48,6 +48,7 @@ const commands = {
 
 async function init() {
     if (domain === "www.redgifs.com") {
+        initCSS();
         patchJSONParse();
         patchVideoPlay();
 
@@ -273,40 +274,42 @@ function patchVideoPlay() {
     };
 }
 
-GM.addStyle(`
-    .hidden {
-        pointer-events: none;
-        opacity: 0;
-        overflow: hidden;
-    }
-    .download-button {
-        display: none;
-        position: fixed; 
-        bottom: 1rem; 
-        right: 1rem; 
-        cursor: pointer; 
-        user-select: none;
-    }
-    #download-dropdown {
-        position: absolute;
-        bottom: 100%;
-        padding: 10px;
-        right: 0;
-        background: rgb(6, 6, 20);
-        margin-bottom: .5rem;
-        border-radius: .75rem;
-        display: flex;
-        flex-direction: column;
-        width: max-content;
-        gap: .5rem;
-
-        & > * {
-            padding-inline: .5rem;
-            border-radius: .25rem;
-            cursor: pointer;
+function initCSS() {
+    GM.addStyle(`
+        .hidden {
+            pointer-events: none;
+            opacity: 0;
+            overflow: hidden;
         }
-        & > *:hover {
-            background-color: rgba(255, 255, 255, .05)
+        .download-button {
+            display: none;
+            position: fixed; 
+            bottom: 1rem; 
+            right: 1rem; 
+            cursor: pointer; 
+            user-select: none;
         }
-    }    
-`);
+        #download-dropdown {
+            position: absolute;
+            bottom: 100%;
+            padding: 10px;
+            right: 0;
+            background: rgb(6, 6, 20);
+            margin-bottom: .5rem;
+            border-radius: .75rem;
+            display: flex;
+            flex-direction: column;
+            width: max-content;
+            gap: .5rem;
+    
+            & > * {
+                padding-inline: .5rem;
+                border-radius: .25rem;
+                cursor: pointer;
+            }
+            & > *:hover {
+                background-color: rgba(255, 255, 255, .05)
+            }
+        }    
+    `);
+}
