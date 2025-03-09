@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name            Redgifs Embed Tweaks
+// @name            Redgifs Embed Tweaks (RET)
 // @namespace       https://greasyfork.org/pt-BR/users/821661
 // @match           https://www.redgifs.com/ifr/*
 // @match           https://www.reddit.com/*
@@ -11,7 +11,7 @@
 // @grant           GM.getValue
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.3.9
+// @version         0.4.0
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -122,16 +122,18 @@ async function prefsMonitor() {
     if (prefsButton == null) return;
 
     prefsButton.addEventListener("click", e => {
-        if (e.target.closest(".soundOff")) {
+        const target = e.target;
+
+        if (target.closest(".soundOff")) {
             localStorage.setItem("muted", "0");
         }
-        if (e.target.closest(".soundOn")) {
+        if (target.closest(".soundOn")) {
             localStorage.removeItem("muted");
         }
-        if (e.target.closest(".gifQuality:has(> [d^='M7.773'])")) {
+        if (target.closest(".gifQuality:has(> [d^='M7.773'])")) {
             localStorage.setItem("hd", "1");
         }
-        if (e.target.closest(".gifQuality:has(> [d^='M1.16712'])")) {
+        if (target.closest(".gifQuality:has(> [d^='M1.16712'])")) {
             localStorage.removeItem("hd");
         }
     });
@@ -152,13 +154,18 @@ function interVideo(videoElement) {
     };
 
     const handleIntersection = ([entry]) => {
+        console.log(entry, entry.isIntersecting);
         if (!entry.isIntersecting) {
             videoElement.pause();
         }
 
         intersecting = entry.isIntersecting;
     };
-    const observer = new IntersectionObserver(handleIntersection, { threshold: 0.4 });
+    const observer = new IntersectionObserver(handleIntersection, {
+        threshold: 0.4,
+    });
+
+    console.log("Observing: ", videoElement);
 
     observer.observe(videoElement);
 }
@@ -209,7 +216,7 @@ function addDownloadEntries(arr) {
 
 async function downloadAsBlob(vUrl) {
     if (isInIframe()) {
-        return window.parent.postMessage({ url: vUrl }, "*");
+        return window.parent.postMessage({ redUrl: vUrl }, "*");
     }
 
     try {
@@ -238,7 +245,10 @@ async function downloadAsBlob(vUrl) {
 }
 
 function downloadOnTop() {
-    window.addEventListener("message", e => (e.data.url ? downloadAsBlob(e.data?.url) : null));
+    window.addEventListener("message", e => {
+        console.log(e.data.url);
+        // e.data.url ? downloadAsBlob(e.data?.redUrl) : null;
+    });
 }
 
 function downloadVisible() {

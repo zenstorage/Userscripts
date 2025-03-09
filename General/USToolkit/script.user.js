@@ -9,31 +9,23 @@
 // ==/UserScript==
 
 /**
- * A shorthand for the console.log function.
+ * Asynchronously queries the DOM for an element matching the given selector.
+ * If the element is not found immediately, it will observe the DOM for changes
+ * and resolve once the element is found or reject after a timeout.
  *
- * @type {Function}
- */
-const log = console.log;
-
-/**
- * Asynchronously waits for an element to appear in the DOM that matches the given selector.
- * If the element is found immediately, it resolves the promise with the element.
- * If the element is not found immediately, it sets up a MutationObserver to watch for changes in the DOM.
- * If the element appears within 10 seconds, it resolves the promise with the element.
- * If the element does not appear within 10 seconds, it rejects the promise with a timeout error.
- *
- * @param {string} selector - The CSS selector of the element to wait for.
+ * @param {string} selector - The CSS selector to query for.
+ * @param {number} [timeoutSeconds=10] - The maximum time to wait for the element, in seconds.
  * @returns {Promise<Element>} A promise that resolves with the found element or rejects with a timeout error.
  */
-function asyncQuerySelector(selector) {
+function asyncQuerySelector(selector, timeoutSeconds = 10) {
     return new Promise((resolve, reject) => {
-        const element = unsafeWindow.wrappedJSObject.document.querySelector(selector);
+        const element = document.querySelector(selector);
         if (element) {
             resolve(element);
         }
 
         const mutationsHandler = () => {
-            const target = unsafeWindow.wrappedJSObject.document.querySelector(selector);
+            const target = document.querySelector(selector);
             if (target) {
                 observer.disconnect();
                 resolve(target);
@@ -47,27 +39,6 @@ function asyncQuerySelector(selector) {
         setTimeout(() => {
             observer.disconnect();
             reject("Timeout 10 seconds");
-        }, 10000);
+        }, timeoutSeconds * 1000);
     });
 }
-
-function exportFunctions(log, asyncQuerySelector) {
-    const pageWnd = unsafeWindow.wrappedJSObject;
-
-    exportFunction(log, pageWnd, {
-        defineAs: "log",
-    });
-
-    // exportFunction(
-    //     function () {
-    //         const result = asyncQuerySelector();
-
-    //         return result;
-    //     },
-    //     pageWnd,
-    //     {
-    //         defineAs: "asyncQuerySelector",
-    //     }
-    // );
-}
-exportFunctions(log, asyncQuerySelector);

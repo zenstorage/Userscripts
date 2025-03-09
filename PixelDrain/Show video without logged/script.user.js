@@ -1,17 +1,60 @@
 // ==UserScript==
-// @name                Show video without logged(only available while logged)
+// @name                Pixeldrain show video even without logged
 // @namespace           https://greasyfork.org/users/821661
-// @match               https://pixeldrain.com/u/*
-// @grant               none
-// @version             1.0
+// @match               https://pixeldrain.com/*
+// @grant               GM.registerMenuCommand
+// @version             1.1.3
+// @require             https://update.greasyfork.org/scripts/526417/1540623/USToolkit.js
+// @run-at              document-start
 // @author              hdyzen
-// @description         Show video without logged in pixeldrain(only available while logged)
+// @description         Show video even without logged in pixeldrain
 // @license             GPL-3.0-only
 // ==/UserScript==
 
-const fileId = window.location.pathname.split("/").at(-1);
+function commands() {
+    const useBypassUrl = JSON.parse(localStorage.getItem("bypass-url"));
 
-const titleFile = document.querySelector(".file_preview h1");
-if (titleFile) {
-    titleFile.insertAdjacentHTML("afterend", `<video width="100%" height="600px" style="background-color: #000;" src="https://pixeldrain.com/api/file/${fileId}?download" controls></video>`);
+    if (useBypassUrl) bypassVideoUrl();
+
+    GM.registerMenuCommand(`Use bypass src: [${useBypassUrl ? "ON" : "OFF"}]`, e => {
+        if (useBypassUrl || confirm("This use bypassed url (the video may slow down or not load). Are you sure?")) {
+            localStorage.setItem("bypass-url", !useBypassUrl);
+            window.location.reload();
+        }
+    });
 }
+commands();
+
+function bypassVideoUrl() {
+    const handleMutations = () => {
+        const source = document.querySelector("source[src^='/api/']");
+
+        if (source) source.src = source.src.replace("https://pixeldrain.com/api/file/", "https://pd.cybar.xyz/");
+    };
+
+    const observer = new MutationObserver(handleMutations);
+
+    observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true,
+    });
+}
+
+Object.defineProperty(unsafeWindow, "viewer_data", {
+    get: () => _viewer_data,
+    set: value => {
+        const files = value?.api_response?.files;
+
+        if (files) {
+            for (const file of value.api_response.files) {
+                console.log(file);
+                file.allow_video_player = true;
+            }
+        } else {
+            value.api_response.allow_video_player = true;
+            value.api_response.availability = "";
+        }
+
+        _viewer_data = value;
+    },
+});

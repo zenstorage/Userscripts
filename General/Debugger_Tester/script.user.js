@@ -3,7 +3,7 @@
 // @namespace           https://greasyfork.org/users/821661
 // @match               https://*/*
 // @grant               none
-// @run-at              document-start
+
 // @version             1.0
 // @author              hdyzen
 // @description         07/02/2025, 21:41:15
@@ -52,16 +52,74 @@ function patchCanvasText() {
  * const obj = JSON.parse('{"key": "value"}');
  * console.log(obj);
  */
+
 function patchJSONParse() {
     const originalJParse = JSON.parse;
 
     JSON.parse = function (text, reviver) {
-        console.log(`[JSON]: "${text}"`);
+        const result = originalJParse.call(this, text, reviver);
 
-        return originalJParse.call(this, text, reviver);
+        console.log("[JSON]: ", result);
+
+        return result;
     };
 }
 // patchJSONParse();
+
+/**
+ * Patches the Response.prototype.json method to log the JSON response to the console.
+ *
+ * This function overrides the default behavior of the Response.prototype.json method
+ * to log the parsed JSON response before returning it. It can be useful for debugging
+ * purposes to see the JSON data being processed.
+ *
+ * @function patchResponseJSON
+ * @example
+ * // Call this function to patch the Response.prototype.json method
+ * patchResponseJSON();
+ *
+ * // Example usage after patching
+ * fetch('https://api.example.com/data')
+ *     .then(response => response.json())
+ *     .then(data => {
+ *         console.log('Data received:', data);
+ *     });
+ */
+function patchResponseJSON() {
+    const originalJson = Response.prototype.json;
+
+    Response.prototype.json = async function () {
+        const result = await originalJson.call(this);
+
+        console.log("[JSON]:", result);
+
+        return result;
+    };
+}
+// patchResponseJSON()
+
+/**
+ * Patches the global `fetch` function to intercept and log the JSON response.
+ *
+ * This function replaces the default `fetch` function with a custom implementation
+ * that logs the JSON response to the console before returning the original response.
+ *
+ * @function patchFetch
+ * @returns {void}
+ */
+function patchFetch() {
+    const originalFetch = fetch;
+
+    window.fetch = async (...args) => {
+        const response = await originalFetch.call(...args);
+
+        const result = await response.clone().json();
+        console.log("Resposta interceptada:", result);
+
+        return response;
+    };
+}
+patchFetch();
 
 /**
  * Patches the `navigator.clipboard.writeText` method to log the text being copied to the clipboard.
@@ -110,17 +168,22 @@ function patchddEventListener() {
     const originalAddEventListener = EventTarget.prototype.addEventListener;
 
     EventTarget.prototype.addEventListener = function (type, listener, options) {
-        console.log(`Evento adicionado: ${type}`);
+        // console.log(`Evento adicionado: ${type}`);
 
         const wrappedListener = function (event) {
             console.log(`Evento acionado: ${type}`);
 
-            listener.call(this, event);
+            if (typeof listener === "function") {
+                listener.call(this, event);
+            } else if (listener && typeof listener.handleEvent === "function") {
+                listener.handleEvent(event);
+            }
         };
 
         return originalAddEventListener.call(this, type, wrappedListener, options);
     };
 }
+// patchddEventListener();
 
 /**
  * Patches the console object to override its methods.
@@ -147,4 +210,39 @@ function patchConsole() {
         });
     }
 }
-patchConsole();
+// patchConsole();
+
+/**
+ * Patches the document's cookie property to log cookie access and modifications.
+ *
+ * This function overrides the default behavior of setting and getting cookies
+ * on the document object. When a cookie is set, it logs the value being set.
+ * When cookies are accessed, it logs the current cookies.
+ *
+ * @function patchCookies
+ * @example
+ * // Call this function to patch the document.cookie property
+ * patchCookies();
+ *
+ * // Example usage after patching
+ * document.cookie = "username=JohnDoe";
+ * console.log(document.cookie);
+ */
+function patchCookies() {
+    const originalSetCookie = document.__lookupSetter__("cookie");
+    const originalGetCookie = document.__lookupGetter__("cookie");
+
+    Object.defineProperty(document, "cookie", {
+        set: value => {
+            console.log("Cookie sendo definido:", value);
+
+            originalSetCookie.call(document, value);
+        },
+        get: () => {
+            const cookies = originalGetCookie.call(document);
+            console.log("Cookies acessados:", cookies);
+
+            return cookies;
+        },
+    });
+}
