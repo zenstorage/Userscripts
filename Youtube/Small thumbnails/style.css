@@ -1,213 +1,185 @@
-/* ==UserStyle==
-@name           Youtube Small Thumbnails
-@namespace      youtube.com
-@version        0.8.4
-@description    small thumbnails for youtube
-@author         hdyzen
-@preprocessor 	stylus
-
-@var number rowsHomePag 		'Columns' [6, 1, 12, 1]
-@var number horizontalM			'Horizontal margin columns' [8, 0, 200, 1, 'px']
-@var number verticalM			'Vertival margin rows' [10, 0, 200, 1, 'px']
-@var number fontSizeT 			'Font size title' [1.4, 1, 6, 0.1, 'rem']
-@var number fontSizeM 			'Font size metadata' [1.3, 1, 6, 0.1, 'rem']
-@var number fontWeightT 		'Font weight title' [500, 100, 900, 100]
-@var number fontWeightM 		'Font weight metadata' [400, 100, 900, 100]
-@var number thumbSizeS			'Thumb size search page' [240, 50, 900, 1, 'px']
-
-@var checkbox searchTwoColumns	'Two columns in search page' 0
-		
-@var checkbox videoP			'Hide video preview when hover thumbnail' 0
-		
-@var select viewedVideo 		'Video viewed mode' ['None', 'Grayscale', 'Remove']
-@var select viewedGrayS 		'Video viewed grayscale style' ['Default', 'Thumbnail', 'Slider', 'ThumbSlider:Thumb+Slider']
-@var range viewedGray			'Video viewed grayscale' [80, 0, 100, 1, '%']
-		
-@var range widthContH			'Width container videos home page' [100, 0, 100, 1, '%']
-		
-@var checkbox bloatH			'Remove bloat homepage(shorts, banner, survey, etc)' 0
-@var checkbox mixPlaylist 		'Remove mix playlists' 0
-@var checkbox recommendedVideos 'Remove recommended videos in search page' 0
-
-==/UserStyle== */
-@-moz-document domain("youtube.com") {
-  html {
-    --ytd-rich-grid-item-margin: horizontalM !important;
-    --ytd-rich-grid-item-margin-row: verticalM !important;
-  }
-  ytd-rich-grid-renderer,
-  ytd-grid-video-renderer,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer,
-  ytd-reel-item-renderer {
-    --ytd-rich-grid-items-per-row: rowsHomePag !important;
-  }
-  ytd-grid-video-renderer,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer,
-  :is(ytd-search,
-  [page-subtype="channels"]) ytd-reel-item-renderer {
-    --ytd-grid-video-width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
-    width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
-  }
-  ytd-grid-video-renderer ytd-thumbnail,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail,
-  :is(ytd-search ytd-thumbnail,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail,
-  ytd-grid-video-renderer ytd-playlist-thumbnail,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail,
-  :is(ytd-search ytd-playlist-thumbnail,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail {
-    width: 100% !important;
-    height: max-content !important;
-    aspect-ratio: 16/9 !important;
-  }
-  ytd-grid-video-renderer ytd-thumbnail::before,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail::before,
-  :is(ytd-search ytd-thumbnail::before,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail::before,
-  ytd-grid-video-renderer ytd-playlist-thumbnail::before,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail::before,
-  :is(ytd-search ytd-playlist-thumbnail::before,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail::before {
-    display: none !important;
-  }
-  ytd-grid-video-renderer ytd-thumbnail #thumbnail,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail #thumbnail,
-  :is(ytd-search ytd-thumbnail #thumbnail,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail #thumbnail,
-  ytd-grid-video-renderer ytd-playlist-thumbnail #thumbnail,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail #thumbnail,
-  :is(ytd-search ytd-playlist-thumbnail #thumbnail,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail #thumbnail,
-  ytd-grid-video-renderer ytd-thumbnail #playlist-thumbnails,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail #playlist-thumbnails,
-  :is(ytd-search ytd-thumbnail #playlist-thumbnails,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail #playlist-thumbnails,
-  ytd-grid-video-renderer ytd-playlist-thumbnail #playlist-thumbnails,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail #playlist-thumbnails,
-  :is(ytd-search ytd-playlist-thumbnail #playlist-thumbnails,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail #playlist-thumbnails,
-  ytd-grid-video-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
-  :is(ytd-search ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
-  ytd-grid-video-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
-  ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
-  :is(ytd-search ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
-  [page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer {
-    position: relative !important;
-  }
-  ytd-rich-item-renderer[rendered-from-rich-grid] {
-    margin: 0 !important;
-  }
-  #scroll-container {
-    width: 100% !important;
-  }
-  #scroll-container #items {
-    width: 100% !important;
-  }
-  #contents.ytd-rich-grid-renderer {
-    column-gap: var(--ytd-rich-grid-item-margin) !important;
-    row-gap: var(--ytd-rich-grid-item-margin-row) !important;
-    display: flex !important;
-  }
-  ytd-rich-grid-row.style-scope.ytd-rich-grid-renderer,
-  ytd-rich-grid-row.style-scope.ytd-rich-grid-renderer > #contents {
-    display: contents !important;
-  }
-  ytd-rich-grid-row ytd-rich-item-renderer {
-    margin: 0 !important;
-    width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
-  }
-  ytd-browse[page-subtype="home"] ytd-rich-grid-renderer {
-    margin: 0 24px;
-  }
-  ytd-browse[page-subtype="home"] ytd-rich-section-renderer > #content {
-    margin-inline: 0 !important;
-  }
-  ytd-feed-filter-chip-bar-renderer[fluid-width] #chips-content.ytd-feed-filter-chip-bar-renderer {
-    padding: 0;
-  }
-  ytd-two-column-browse-results-rendererv {
-    width: widthContH !important;
-  }
-  #video-title.ytd-rich-grid-media,
-  #video-title.ytd-radio-renderer,
-  #video-title.ytd-video-renderer,
-  #channel-title.ytd-channel-renderer,
-  #video-title.ytd-playlist-renderer,
-  #video-title.ytd-compact-video-renderer,
-  #video-title.ytd-playlist-panel-video-renderer,
-  ytd-grid-video-renderer #video-title.yt-simple-endpoint.ytd-grid-video-renderer,
-  .yt-lockup-metadata-view-model-wiz__title {
-    font-size: fontSizeT !important;
-    font-weight: fontWeightT !important;
-  }
-  ytd-video-meta-block[rich-meta] #byline-container.ytd-video-meta-block,
-  ytd-video-meta-block:not([inline-badges]) #metadata-line.ytd-video-meta-block span.ytd-video-meta-block,
-  #contents #text.ytd-channel-name:has(a),
-  #metadata-line,
-  .metadata-snippet-container-one-line.ytd-video-renderer,
-  .metadata-snippet-container.ytd-video-renderer,
-  #metadata.ytd-channel-renderer,
-  #description.ytd-channel-renderer,
-  #video-title.ytd-child-video-renderer,
-  #length.ytd-child-video-renderer,
-  #channel-name.long-byline.ytd-video-meta-block,
-  #byline.ytd-playlist-panel-video-renderer {
-    font-size: fontSizeM !important;
-    font-weight: fontWeightM !important;
-  }
-  ytd-radio-renderer {
-    --ytd-thumbnail-max-width: 240px !important;
-    --ytd-thumbnail-min-width: 240px !important;
-  }
-  ytd-search :is(ytd-video-renderer[use-search-ui] ytd-thumbnail.ytd-video-renderer,
-  ytd-playlist-renderer[is-search] ytd-playlist-thumbnail.ytd-playlist-renderer,
-  #avatar-section.ytd-channel-renderer,
-  ytd-video-renderer:not([use-search-ui]) ytd-thumbnail.ytd-video-renderer,
-  ytd-thumbnail.ytd-radio-renderer,
-  ytd-playlist-thumbnail.ytd-radio-renderer),
-  ytd-search ytd-thumbnail {
-    max-width: thumbSizeS !important;
-    min-width: thumbSizeS !important;
-  }
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer,
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: var(--ytd-item-section-item-margin, 16px) !important;
-  }
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-video-renderer,
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-video-renderer,
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-radio-renderer,
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-radio-renderer,
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-playlist-renderer,
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-playlist-renderer {
-    flex: 1 0 calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2) !important;
-    margin: 0 !important;
-    max-width: calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2);
-  }
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-reel-shelf-renderer,
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-reel-shelf-renderer {
-    max-width: 100%;
-  }
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: var(--ytd-item-section-item-margin, 16px) !important;
-  }
-  ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-video-renderer {
-    flex: 1 0 calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2) !important;
-    margin: 0 !important;
-  }
-  #video-preview.ytd-app {
-    display: none !important;
-  }
-  #big-yoodle,
-  ytd-rich-section-renderer:has(a[title][href="/feed/storefront"]) {
-    display: none !important;
-  }
-  ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-shelf-renderer {
-    display: none !important;
-  }
+/* Set columns */
+html {
+  --ytd-rich-grid-item-margin: horizontalM !important;
+  --ytd-rich-grid-item-margin-row: verticalM !important;
+}
+ytd-rich-grid-renderer,
+ytd-grid-video-renderer,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer,
+ytd-reel-item-renderer {
+  --ytd-rich-grid-items-per-row: rowsHomePag !important;
+}
+ytd-grid-video-renderer,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer,
+:is(ytd-search,
+[page-subtype="channels"]) ytd-reel-item-renderer {
+  --ytd-grid-video-width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
+  width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
+}
+ytd-grid-video-renderer ytd-thumbnail,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail,
+:is(ytd-search ytd-thumbnail,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail,
+ytd-grid-video-renderer ytd-playlist-thumbnail,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail,
+:is(ytd-search ytd-playlist-thumbnail,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail {
+  width: 100% !important;
+  height: max-content !important;
+  aspect-ratio: 16/9 !important;
+}
+ytd-grid-video-renderer ytd-thumbnail::before,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail::before,
+:is(ytd-search ytd-thumbnail::before,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail::before,
+ytd-grid-video-renderer ytd-playlist-thumbnail::before,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail::before,
+:is(ytd-search ytd-playlist-thumbnail::before,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail::before {
+  display: none !important;
+}
+ytd-grid-video-renderer ytd-thumbnail #thumbnail,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail #thumbnail,
+:is(ytd-search ytd-thumbnail #thumbnail,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail #thumbnail,
+ytd-grid-video-renderer ytd-playlist-thumbnail #thumbnail,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail #thumbnail,
+:is(ytd-search ytd-playlist-thumbnail #thumbnail,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail #thumbnail,
+ytd-grid-video-renderer ytd-thumbnail #playlist-thumbnails,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail #playlist-thumbnails,
+:is(ytd-search ytd-thumbnail #playlist-thumbnails,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail #playlist-thumbnails,
+ytd-grid-video-renderer ytd-playlist-thumbnail #playlist-thumbnails,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail #playlist-thumbnails,
+:is(ytd-search ytd-playlist-thumbnail #playlist-thumbnails,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail #playlist-thumbnails,
+ytd-grid-video-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
+:is(ytd-search ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-thumbnail ytd-playlist-video-thumbnail-renderer,
+ytd-grid-video-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
+ytd-grid-playlist-renderer.yt-horizontal-list-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
+:is(ytd-search ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer,
+[page-subtype="channels"]) ytd-reel-item-renderer ytd-playlist-thumbnail ytd-playlist-video-thumbnail-renderer {
+  position: relative !important;
+}
+ytd-rich-item-renderer[rendered-from-rich-grid] {
+  margin: 0 !important;
+}
+#scroll-container {
+  width: 100% !important;
+}
+#scroll-container #items {
+  width: 100% !important;
+}
+#contents.ytd-rich-grid-renderer {
+  column-gap: var(--ytd-rich-grid-item-margin) !important;
+  row-gap: var(--ytd-rich-grid-item-margin-row) !important;
+  display: flex !important;
+}
+ytd-rich-grid-row.style-scope.ytd-rich-grid-renderer,
+ytd-rich-grid-row.style-scope.ytd-rich-grid-renderer > #contents {
+  display: contents !important;
+}
+ytd-rich-grid-row ytd-rich-item-renderer {
+  margin: 0 !important;
+  width: calc(100% / var(--ytd-rich-grid-items-per-row) - var(--ytd-rich-grid-item-margin)) !important;
+}
+ytd-browse[page-subtype="home"] ytd-rich-grid-renderer {
+  margin: 0 24px;
+}
+ytd-browse[page-subtype="home"] ytd-rich-section-renderer > #content {
+  margin-inline: 0 !important;
+}
+ytd-feed-filter-chip-bar-renderer[fluid-width] #chips-content.ytd-feed-filter-chip-bar-renderer {
+  padding: 0;
+}
+/* VIDEOS CONTAINER HOME PAGE */
+ytd-two-column-browse-results-rendererv {
+  width: widthContH !important;
+}
+/* TITLE */
+#video-title.ytd-rich-grid-media,
+#video-title.ytd-radio-renderer,
+#video-title.ytd-video-renderer,
+#channel-title.ytd-channel-renderer,
+#video-title.ytd-playlist-renderer,
+#video-title.ytd-compact-video-renderer,
+#video-title.ytd-playlist-panel-video-renderer,
+ytd-grid-video-renderer #video-title.yt-simple-endpoint.ytd-grid-video-renderer,
+.yt-lockup-metadata-view-model-wiz__title {
+  font-size: fontSizeT !important;
+  font-weight: fontWeightT !important;
+}
+/* DETAILS */
+ytd-video-meta-block[rich-meta] #byline-container.ytd-video-meta-block,
+ytd-video-meta-block:not([inline-badges]) #metadata-line.ytd-video-meta-block span.ytd-video-meta-block,
+#contents #text.ytd-channel-name:has(a),
+#metadata-line,
+.metadata-snippet-container-one-line.ytd-video-renderer,
+.metadata-snippet-container.ytd-video-renderer,
+#metadata.ytd-channel-renderer,
+#description.ytd-channel-renderer,
+#video-title.ytd-child-video-renderer,
+#length.ytd-child-video-renderer,
+#channel-name.long-byline.ytd-video-meta-block,
+#byline.ytd-playlist-panel-video-renderer {
+  font-size: fontSizeM !important;
+  font-weight: fontWeightM !important;
+}
+/* SIZE THUMB VIDEOS SEARCH PAGE */
+ytd-radio-renderer {
+  --ytd-thumbnail-max-width: 240px !important;
+  --ytd-thumbnail-min-width: 240px !important;
+}
+ytd-search :is(ytd-video-renderer[use-search-ui] ytd-thumbnail.ytd-video-renderer,
+ytd-playlist-renderer[is-search] ytd-playlist-thumbnail.ytd-playlist-renderer,
+#avatar-section.ytd-channel-renderer,
+ytd-video-renderer:not([use-search-ui]) ytd-thumbnail.ytd-video-renderer,
+ytd-thumbnail.ytd-radio-renderer,
+ytd-playlist-thumbnail.ytd-radio-renderer),
+ytd-search ytd-thumbnail {
+  max-width: thumbSizeS !important;
+  min-width: thumbSizeS !important;
+}
+/* TWO COLUMNS IN SEARCH PAGE */
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer,
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--ytd-item-section-item-margin, 16px) !important;
+}
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-video-renderer,
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-video-renderer,
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-radio-renderer,
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-radio-renderer,
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-playlist-renderer,
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-playlist-renderer {
+  flex: 1 0 calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2) !important;
+  margin: 0 !important;
+  max-width: calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2);
+}
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-reel-shelf-renderer,
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-reel-shelf-renderer {
+  max-width: 100%;
+}
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--ytd-item-section-item-margin, 16px) !important;
+}
+ytd-vertical-list-renderer.ytd-shelf-renderer > #items.ytd-vertical-list-renderer > ytd-video-renderer {
+  flex: 1 0 calc((100% - var(--ytd-item-section-item-margin, 16px)) / 2) !important;
+  margin: 0 !important;
+}
+#video-preview.ytd-app {
+  display: none !important;
+}
+#big-yoodle,
+ytd-rich-section-renderer:has(a[title][href="/feed/storefront"]) {
+  display: none !important;
+}
+ytd-item-section-renderer.ytd-section-list-renderer > #contents.ytd-item-section-renderer > ytd-shelf-renderer {
+  display: none !important;
 }
