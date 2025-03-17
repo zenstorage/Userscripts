@@ -184,6 +184,7 @@ async function initVolumeSlider(video) {
         },
     });
     document.body.appendChild(inputSlider);
+    video.volume = localStorage.getItem("volume") || 0;
 }
 
 function interVideo(videoElement) {
