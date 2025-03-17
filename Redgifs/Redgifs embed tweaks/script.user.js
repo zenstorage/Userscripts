@@ -11,7 +11,7 @@
 // @grant           GM.getValue
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.0
+// @version         0.4.1
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -20,12 +20,14 @@
 
 const domain = window.location.hostname;
 
-const domainsAllowed = ["www.reddit.com", "lemmynsfw.com"];
-
 const commands = {
     autoplay: {
         label: "Autoplay",
         state: false,
+    },
+    volumeSlider: {
+        label: "Enable volume slider",
+        state: true,
     },
     openLink: {
         label: "Prevent link open",
@@ -87,6 +89,27 @@ async function initCommands() {
     }
 }
 
+function createElement({ tagName, attributes = {}, props = {}, listeners = {} }) {
+    const element = document.createElement(tagName);
+
+    const attributesIt = Object.entries(attributes);
+    for (const [name, value] of attributesIt) {
+        element.setAttribute(name, value);
+    }
+
+    const propsIt = Object.entries(props);
+    for (const [name, value] of propsIt) {
+        element.name = value;
+    }
+
+    const listenersIt = Object.entries(listeners);
+    for (const [name, value] of listenersIt) {
+        element.addEventListener(name, value);
+    }
+
+    return element;
+}
+
 async function initVideo() {
     const video = await asyncQuerySelector("video[src]");
 
@@ -96,6 +119,10 @@ async function initVideo() {
 
     if (getState("pauseVideo")) {
         interVideo(video);
+    }
+
+    if (getState("volumeSlider")) {
+        initVolumeSlider(video);
     }
 }
 
@@ -137,6 +164,26 @@ async function prefsMonitor() {
             localStorage.removeItem("hd");
         }
     });
+}
+
+async function initVolumeSlider(video) {
+    const inputSlider = createElement({
+        tagName: "input",
+        attributes: {
+            class: "volume-slider",
+            type: "range",
+            value: (localStorage.getItem("volume") || 0) * 100,
+        },
+        listeners: {
+            input: ev => {
+                const volume = ev.target.valueAsNumber / 100;
+                video.volume = volume;
+                localStorage.setItem("volume", volume);
+            },
+            mouseup: ev => ev.stopImmediatePropagation(),
+        },
+    });
+    document.body.appendChild(inputSlider);
 }
 
 function interVideo(videoElement) {
@@ -356,6 +403,22 @@ function initCSS() {
         }
         .copy-button > svg {
             vertical-align: middle;
+        }
+        .volume-slider {
+            display: none;
+            position: absolute;
+            padding-block: 20px;
+            height: 5px;
+            top: 6px;
+            right: 40px;
+            width: 110px;
+            accent-color: #2a2a81;
+        }
+        .button:hover .volume-slider {
+            display: block;
+        }
+        body:has(.soundOff:hover, .soundOn:hover) .volume-slider, .volume-slider:hover {
+            display: block;
         }
         `);
 }
