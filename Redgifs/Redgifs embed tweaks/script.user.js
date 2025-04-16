@@ -1,9 +1,6 @@
 // ==UserScript==
 // @name            Redgifs Embed Tweaks (RET)
 // @namespace       https://greasyfork.org/pt-BR/users/821661
-// @match           https://www.redgifs.com/ifr/*
-// @match           https://www.reddit.com/*
-// @match           https://lemmynsfw.com/*
 // @match           https://*/*
 // @grant           GM.xmlHttpRequest
 // @grant           GM.addStyle
@@ -11,7 +8,7 @@
 // @grant           GM.getValue
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.2
+// @version         0.4.3
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -39,6 +36,10 @@ const commands = {
     },
     pauseVideo: {
         label: "Pause video when not visible",
+        state: true,
+    },
+    videoControls: {
+        label: "Video controls",
         state: true,
     },
     downloadButton: {
@@ -70,6 +71,13 @@ async function init() {
     hideBloat();
 }
 init();
+
+let videoRoot;
+
+async function getVideo() {
+    videoRoot = await asyncQuerySelector("video[src]");
+    console.log("Acgou o video");
+}
 
 async function initCommands() {
     const comm = Object.entries(commands);
@@ -111,18 +119,22 @@ function createElement({ tagName, attributes = {}, props = {}, listeners = {} })
 }
 
 async function initVideo() {
-    const video = await asyncQuerySelector("video[src]");
+    await getVideo();
 
     if (getState("openLink")) {
-        video.parentElement.removeAttribute("href");
+        videoRoot.parentElement.removeAttribute("href");
     }
 
     if (getState("pauseVideo")) {
-        interVideo(video);
+        interVideo(videoRoot);
+    }
+
+    if (getState("videoControls")) {
+        initVideoControls();
     }
 
     if (getState("volumeSlider")) {
-        initVolumeSlider(video);
+        initVolumeSlider(videoRoot);
     }
 }
 
@@ -187,11 +199,11 @@ async function initVolumeSlider(video) {
     video.volume = localStorage.getItem("volume") || 0;
 }
 
-function interVideo(videoElement) {
+function interVideo(video) {
     let intersecting = true;
-    const originalPlay = videoElement.play;
+    const originalPlay = video.play;
 
-    videoElement.play = function () {
+    video.play = function () {
         const stackTrace = new Error().stack;
 
         if (!intersecting && stackTrace.includes("emit")) {
@@ -202,9 +214,8 @@ function interVideo(videoElement) {
     };
 
     const handleIntersection = ([entry]) => {
-        console.log(entry, entry.isIntersecting);
         if (!entry.isIntersecting) {
-            videoElement.pause();
+            video.pause();
         }
 
         intersecting = entry.isIntersecting;
@@ -213,9 +224,71 @@ function interVideo(videoElement) {
         threshold: 0.4,
     });
 
-    console.log("Observing: ", videoElement);
+    observer.observe(video);
+}
 
-    observer.observe(videoElement);
+function initVideoControls() {
+    window.addEventListener("keydown", ev => {
+        const key = ev.code;
+
+        let timeStep = ev.shiftKey ? 10 : 5;
+        let volumeStep = ev.shiftKey ? 0.1 : 0.05;
+        let playbackStep = 0.1;
+
+        switch (key) {
+            case "KeyF":
+                document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+                break;
+
+            case "KeyM":
+                videoRoot.muted = !videoRoot.muted;
+                break;
+
+            case "Space":
+                videoRoot.paused ? videoRoot.play() : videoRoot.pause();
+                break;
+
+            case "ArrowLeft":
+                videoRoot.currentTime -= timeStep;
+                break;
+
+            case "ArrowRight":
+                videoRoot.currentTime += timeStep;
+                break;
+
+            case "ArrowUp":
+                videoRoot.volume = Math.min(1, videoRoot.volume + volumeStep);
+                break;
+
+            case "ArrowDown":
+                videoRoot.volume = Math.max(0, videoRoot.volume - volumeStep);
+                break;
+
+            case "Minus":
+                videoRoot.playbackRate -= playbackStep;
+
+                break;
+            case "Equal":
+                videoRoot.playbackRate += playbackStep;
+                break;
+
+            case "Backspace":
+                videoRoot.playbackRate = 1;
+                break;
+
+            case "Home":
+                videoRoot.currentTime = 0;
+                break;
+
+            case "End":
+                videoRoot.currentTime = videoRoot.duration;
+                break;
+
+            default:
+                break;
+        }
+        console.log(ev);
+    });
 }
 
 function addDownloadEntries(arr) {

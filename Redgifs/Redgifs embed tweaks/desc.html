@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+            :root {
+                background-color: rgb(30, 30, 36);
+                color: #eee;
+                font-family: system-ui;
+            }
+            body {
+                margin-inline: 4rem;
+            }
+        </style>
+        <title>Redgifs embed description</title>
+    </head>
+    <body>
+        <h3>Tweaks ideas can be accepted in: <a href="https://greasyfork.org/pt-BR/scripts/480214-redgifs-embed-tweaks/feedback#post-discussion">Comments tab</a></h3>
+        <h3>Match all (<code style="color: aliceblue">https://*/*</code>) the pages is necessary to be able to download from any page</h3>
+        <h4>NOTE: Compatible with Violentmonkey and Tampermonkey</h4>
+
+        <hr />
+
+        <h3>Features:</h3>
+        <blockquote>
+            <h4>1. Disable autoplay</h4>
+            <h4>2. Prevent open link when click</h4>
+            <h4>3. Save prefs states(muted and quality)</h4>
+            <h4>4. Pause video when not visible(60% less)</h4>
+            <h4>5. Video contrls (see below)</h4>
+            <h4>6. Download button</h4>
+            <h4>7. Remove bloat</h4>
+        </blockquote>
+
+        <hr />
+
+        <h3>Videos controls keys:</h3>
+        <table style="border-collapse: collapse">
+            <tr>
+                <th style="border: 1px solid #dddddd; text-align: left; padding: 8px">Key</th>
+                <th style="border: 1px solid #dddddd; text-align: left; padding: 8px">Action</th>
+                <th style="border: 1px solid #dddddd; text-align: left; padding: 8px">Default</th>
+                <th style="border: 1px solid #dddddd; text-align: left; padding: 8px">Shift</th>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">F</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Toggle fullscreen</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">M</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Toggle mute</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Space</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Toggle play/pause</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">ArrowRight</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Increase time</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">5s</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10s</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">ArrowLeft</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Decrease time</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">5s</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10s</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">ArrowUp</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Increase volume</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">5%</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10%</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">ArrowDown</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Decrease volume</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">5%</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10%</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Equal</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Increase playback rate</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10%</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Minus</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Decrease playback rate</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">10%</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Home</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Go to start</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+
+            <tr>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">End</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">Go to end</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+                <td style="border: 1px solid #dddddd; text-align: left; padding: 8px">None</td>
+            </tr>
+        </table>
+
+        <hr />
+
+        <span>Change options in ifr page, example: <a href="https://www.redgifs.com/ifr/virtuoustinydegu">NSFW</a> Then open your userscript manager e change default options in Redgifs Embed Tweaks Script</span>
+    </body>
+</html>
