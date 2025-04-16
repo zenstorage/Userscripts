@@ -76,7 +76,6 @@ let videoRoot;
 
 async function getVideo() {
     videoRoot = await asyncQuerySelector("video[src]");
-    console.log("Acgou o video");
 }
 
 async function initCommands() {
@@ -287,7 +286,6 @@ function initVideoControls() {
             default:
                 break;
         }
-        console.log(ev);
     });
 }
 
@@ -398,8 +396,12 @@ function patchJSONParse() {
     JSON.parse = function (text, reviver) {
         const result = originalJParse.call(this, text, reviver);
         if (result.gif) {
+            console.log(result);
             const urls = Object.entries(result.gif.urls);
-            const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
+            const ext = urls
+                .filter(([n, _]) => n !== "html")
+                .map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u])
+                .sort();
 
             addDownloadEntries(ext);
         }
