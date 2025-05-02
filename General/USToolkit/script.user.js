@@ -38,7 +38,7 @@ function asyncQuerySelector(selector, timeoutSeconds = 10) {
 
         setTimeout(() => {
             observer.disconnect();
-            reject("Timeout 10 seconds");
+            reject(`Timeout ${timeoutSeconds} seconds!`);
         }, timeoutSeconds * 1000);
     });
 }

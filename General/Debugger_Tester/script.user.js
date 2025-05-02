@@ -3,11 +3,32 @@
 // @namespace           https://greasyfork.org/users/821661
 // @match               https://*/*
 // @grant               none
-
 // @version             1.0
+// @require             https://update.greasyfork.org/scripts/526417/1540623/USToolkit.js
 // @author              hdyzen
 // @description         07/02/2025, 21:41:15
 // ==/UserScript==
+
+function processVideo(video, messageID) {
+    video.addEventListener("timeupdate", () => {
+        if (!document.body.contains(video)) {
+            return;
+        }
+
+        localStorage.setItem(`${window.location.hash}-${messageID}`, video.currentTime);
+    });
+}
+
+function patchVideoPlay() {
+    const originalPlay = HTMLMediaElement.prototype.play;
+
+    HTMLMediaElement.prototype.play = function () {
+        console.log("Video reproduzindo: ", this);
+
+        return originalPlay.call(this);
+    };
+}
+// patchVideoPlay();
 
 /**
  * Patches the CanvasRenderingContext2D's fillText method to log the text and its position before drawing it.

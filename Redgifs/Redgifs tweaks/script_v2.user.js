@@ -3,108 +3,168 @@
 // @namespace           https://greasyfork.org/users/821661
 // @match               https://www.redgifs.com/*
 // @exclude-match       https://www.redgifs.com/ifr/*
-// @grant               GM.registerMenuCommand
 // @grant               GM.addStyle
 // @grant               GM.download
-// @grant               GM.setValue
-// @grant               GM.getValue
 // @run-at              document-start
 // @require             https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version             0.4.5.1
+// @version             0.4.6
 // @author              hdyzen
 // @description         tweaks for redgifs page
 // @license             MIT
 // @noframes
 // ==/UserScript==
 
-const commands = {
-    downloadButton: {
-        label: "Download button",
-        state: true,
-    },
-    removeBoosted: {
-        label: "Remove boosted/promoted",
-        state: true,
-    },
-    removeAnnoyances: {
-        label: "Remove annoyances",
-        state: true,
-    },
-};
+const urlsMap = new Map();
 
-async function init() {
-    patchJSONParse();
+function observerInit() {
+    const mutationsHandler = mutations => {
+        for (const mutation of mutations) {
+            if (mutation.type === "attributes" && mutation.target.classList.contains("GifPreview")) {
+                const sidebar = mutation.target.querySelector(".SideBar");
 
-    await initCommands();
+                if (!sidebar || sidebar.querySelector(".download-button")) {
+                    return;
+                }
 
-    addDownloadButton();
-}
-init();
+                const gifID = mutation.target.id.split("_")[1];
 
-async function initCommands() {
-    const comm = Object.entries(commands);
+                sidebar.insertAdjacentHTML("beforeend", getDownloadButton(gifID));
+            }
+        }
+    };
 
-    for (let i = 0; i < comm.length; i++) {
-        const key = comm[i][0];
-        const label = comm[i][1].label;
-        const state = await GM.getValue(key, comm[i][1].state);
+    const observer = new MutationObserver(mutationsHandler);
 
-        commands[key].state = state;
-
-        GM.registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, async () => {
-            await GM.setValue(key, !state);
-
-            window.location.reload();
-        });
-    }
-}
-
-function getState(key) {
-    return commands[key].state;
-}
-
-async function addDownloadButton(id, urls) {
-    const sidebar = await asyncQuerySelector(".SideBar");
-    const entries = Object.entries(urls);
-
-    const downloadButton = document.createElement("li");
-    downloadButton.classList.add("SideBar-Item");
-    downloadButton.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24px" height="24px" fill="#fff" ><path d="M 2.376 16.645 C 2.376 16.003 1.843 15.485 1.188 15.485 C 0.533 15.485 0 16.003 0 16.645 L 2.376 16.645 Z M 1.188 18.194 L 0 18.194 L 1.188 18.194 Z M 24 16.645 C 24 16.003 23.467 15.485 22.812 15.485 C 22.157 15.485 21.624 16.003 21.624 16.645 L 24 16.645 Z M 11.064 17.48 C 10.659 17.986 10.752 18.715 11.27 19.109 C 11.786 19.502 12.535 19.413 12.936 18.907 L 11.064 17.48 Z M 19.116 11.166 C 19.519 10.661 19.428 9.93 18.909 9.538 C 18.392 9.141 17.645 9.23 17.242 9.738 L 19.116 11.166 Z M 11.064 18.907 C 11.465 19.413 12.214 19.502 12.73 19.109 C 13.248 18.715 13.341 17.986 12.936 17.48 L 11.064 18.907 Z M 6.758 9.738 C 6.355 9.23 5.608 9.141 5.091 9.538 C 4.572 9.93 4.481 10.661 4.884 11.166 L 6.758 9.738 Z M 10.812 18.194 C 10.812 18.834 11.344 19.355 12 19.355 C 12.656 19.355 13.188 18.834 13.188 18.194 L 10.812 18.194 Z M 13.188 1.162 C 13.188 0.52 12.656 0 12 0 C 11.344 0 10.812 0.52 10.812 1.162 L 13.188 1.162 Z M 0 16.645 L 0 18.194 L 2.376 18.194 L 2.376 16.645 L 0 16.645 Z M 0 18.194 C 0 21.373 2.58 24 5.822 24 L 5.822 21.678 C 3.948 21.678 2.376 20.147 2.376 18.194 L 0 18.194 Z M 5.822 24 L 18.178 24 L 18.178 21.678 L 5.822 21.678 L 5.822 24 Z M 18.178 24 C 21.42 24 24 21.373 24 18.194 L 21.624 18.194 C 21.624 20.147 20.052 21.678 18.178 21.678 L 18.178 24 Z M 24 18.194 L 24 16.645 L 21.624 16.645 L 21.624 18.194 L 24 18.194 Z M 12.936 18.907 L 19.116 11.166 L 17.242 9.738 L 11.064 17.48 L 12.936 18.907 Z M 12.936 17.48 L 6.758 9.738 L 4.884 11.166 L 11.064 18.907 L 12.936 17.48 Z M 13.188 18.194 L 13.188 1.162 L 10.812 1.162 L 10.812 18.194 L 13.188 18.194 Z" /></svg>
-        <div class="dropdown-downloads">
-            <span class="download-entry">${"a"}</span>
-            <span>720</span>
-            <span>430</span>
-        </div>
-        `;
-
-    downloadButton.addEventListener("click", () => {
-        console.log("Download started");
-        GM.download({
-            url: "",
-            name: "",
-        });
+    observer.observe(document.documentElement || document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class"],
     });
-
-    sidebar.appendChild(downloadButton);
-    // console.log(sidebar);
 }
+observerInit();
 
 function patchJSONParse() {
     const originalJParse = JSON.parse;
 
     JSON.parse = function (text, reviver) {
         const result = originalJParse.call(this, text, reviver);
-        if (result.gifs) {
-            for (const gif of result.gifs) {
-                const { id, urls } = gif;
 
-                console.log(id, urls);
+        if (Array.isArray(result.gifs)) {
+            result.gifs = result.gifs.filter(gif => {
+                if (gif.cta !== null) return false;
 
-                // addDownloadButton(id, urls);
-            }
+                urlsMap.set(gif.id, gif.urls);
+                return true;
+            });
         }
 
         return result;
     };
 }
+patchJSONParse();
+
+function download(ev) {
+    const url = ev.target.getAttribute("url");
+
+    GM.download({
+        url: url,
+        name: url.split("/").at(-1),
+        onprogress(evp) {
+            const loaded = (evp.loaded / evp.total) * 100;
+            const progress = (loaded / 100) * ev.target.offsetWidth;
+
+            ev.target.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
+        },
+    });
+}
+unsafeWindow.download = download;
+
+function getDownloadButton(gifID) {
+    const urls = urlsMap.get(gifID);
+    const entries = Object.entries(urls);
+    const buttons = entries
+        .filter(([key]) => key !== "html")
+        .sort()
+        .map(([key, value]) => `<button onclick="download(event)" url="${value}" class="item">${key}</button>`);
+
+    const html = `
+    <div class="download-button">
+        <label for="${gifID}" class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="ionicon" viewBox="0 0 512 512" width="28">
+                <path d="M336 176h40a40 40 0 0140 40v208a40 40 0 01-40 40H136a40 40 0 01-40-40V216a40 40 0 0140-40h40"
+                    fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32">
+                </path>
+                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"
+                    d="M176 272l80 80 80-80M256 48v288"></path>
+            </svg>
+        </label>
+        <input type="checkbox" name="${gifID}" id="${gifID}" hidden>
+        <div class="list">
+            ${buttons.join("")}
+        </div >
+    </div >
+    `;
+
+    return html;
+}
+
+GM.addStyle(`
+    /* Annoyances */
+    .bannerWrapper, .SideBar-Item:has(> [class*="liveAdButton"]) {
+        display: none!important;
+    }
+    .bannerWrapper, div:has(> ._aTab_17ta5_1) {
+        visibility: hidden!important;
+        opacity: 0!important;
+    }
+
+    /* Download button/list */
+    .download-button {
+        position: relative;
+        height: 28px;
+        width: 28px;
+    }
+    .download-button .icon {
+        background: none;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+    }
+    .download-button > input:checked +.list {
+        visibility: visible;
+        opacity: 1;
+    }
+    .download-button .list {
+        visibility: hidden;
+        opacity: 0;
+        display: flex;
+        justify-content: center;
+        align-content: center;
+        flex-direction: column;
+        font-size: 1rem;
+        background: rgb(10, 10, 10, .8);
+        backdrop-filter: blur(20px);
+        position: absolute;
+        top: 100%;
+        right: 100%;
+        width: max-content;
+        border-radius: 0.75rem;
+        border-start-end-radius: 0.25rem;
+        overflow: hidden;
+        box-shadow: 0 0 20px 0 rgba(0, 0, 0, .6);
+        border: 1px solid rgba(255, 255, 255, .05);
+        transition: .2s ease;
+
+        & > .item {
+            padding: .5rem 1rem;
+            background: none;
+            border: none;
+            color: #fff;
+            transition: .3s ease background-color;
+        }
+        & > .item:hover {
+            background: rgb(255, 255, 255, .1);
+            cursor: pointer;
+        }
+    }
+`);
