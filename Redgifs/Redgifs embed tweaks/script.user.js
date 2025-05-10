@@ -8,7 +8,7 @@
 // @grant           GM.getValue
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.3
+// @version         0.4.4
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -21,6 +21,10 @@ const commands = {
     autoplay: {
         label: "Autoplay",
         state: false,
+    },
+    loop: {
+        label: "Loop",
+        state: true,
     },
     volumeSlider: {
         label: "Enable volume slider",
@@ -76,6 +80,7 @@ let videoRoot;
 
 async function getVideo() {
     videoRoot = await asyncQuerySelector("video[src]");
+    console.log("Acgou o video");
 }
 
 async function initCommands() {
@@ -135,6 +140,8 @@ async function initVideo() {
     if (getState("volumeSlider")) {
         initVolumeSlider(videoRoot);
     }
+
+    videoRoot.loop = getState("loop");
 }
 
 async function initPrefs() {
@@ -286,6 +293,7 @@ function initVideoControls() {
             default:
                 break;
         }
+        console.log(ev);
     });
 }
 
@@ -396,12 +404,8 @@ function patchJSONParse() {
     JSON.parse = function (text, reviver) {
         const result = originalJParse.call(this, text, reviver);
         if (result.gif) {
-            console.log(result);
             const urls = Object.entries(result.gif.urls);
-            const ext = urls
-                .filter(([n, _]) => n !== "html")
-                .map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u])
-                .sort();
+            const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
 
             addDownloadEntries(ext);
         }
