@@ -6,9 +6,12 @@
 // @grant           GM_addElement
 // @grant           GM_setValue
 // @grant           GM_getValue
+// @grant           GM_getResourceURL
+// @resource        style https://zenstorage.github.io/Reddit-NSFW-Unblur/userscript/style.css
 // @run-at          document-body
 // @noframes
-// @version         2.4.0
+// @version         2.4.3
+// @icon            https://raw.githubusercontent.com/zenstorage/Reddit-NSFW-Unblur/main/assets/icon.png
 // @author          hdyzen
 // @description     Unblur nsfw in Shreddit
 // @license         MIT
@@ -27,18 +30,14 @@ let styleLoaded = false;
 // Styles link
 const styleM = GM_addElement(document.head, "link", {
     rel: "stylesheet",
-    href: "https://zenstorage.github.io/Reddit-NSFW-Unblur/userscript/style.css",
+    href: GM_getResourceURL("style"),
 });
 styleM.onload = () => {
     styleLoaded = true;
 };
 
-// LOG with prefix
-const log = (...msg) => console.log("[Unblur]:", ...msg);
-
 // Callback for MutationObserver
 function callback(mutations) {
-    const nsfwModal = [...document.getElementsByTagName("shreddit-async-loader")].find(e => e.getAttribute("bundlename").includes("nsfw_blocking_modal"));
     const prompt = document.getElementsByTagName("xpromo-nsfw-blocking-container")?.[0]?.shadowRoot?.children[1];
     const blurreds = [...document.getElementsByTagName("shreddit-blurred-container")].filter(e => !e.hasAttribute("clicked") && e?.shadowRoot?.innerHTML && ((e.getAttribute("reason") === "nsfw" && nsfw) || (e.getAttribute("reason") === "spoiler" && spoiler)));
     const menuAdded = document.getElementById("menu-unblur");
@@ -48,9 +47,6 @@ function callback(mutations) {
 
     // Return if unblur off
     if (!state) return;
-
-    // Remove NSFW modal loader
-    if (nsfwModal) nsfwModal.remove();
 
     // Remove prompt
     if (prompt) prompt.remove();
@@ -87,11 +83,7 @@ async function initMenu() {
     toggleSpoiler.checked = spoiler;
 
     form.addEventListener("change", e => {
-        GM_setValue("states", {
-            state: toggle.checked,
-            nsfw: toggleNSFW.checked,
-            spoiler: toggleSpoiler.checked,
-        });
+        GM_setValue("states", { state: toggle.checked, nsfw: toggleNSFW.checked, spoiler: toggleSpoiler.checked });
     });
 
     document.addEventListener("click", e => {
@@ -107,8 +99,9 @@ observer.observe(document, {
     attributes: true,
 });
 
-setTimeout(() => {
+window.addEventListener("load", () => {
     const isShreddit = document.querySelector("shreddit-app");
     // Check if Shreddit
     if (!isShreddit) observer.disconnect();
-}, 8000);
+    console.log("Shreddit");
+});
