@@ -8,7 +8,7 @@
 // @grant           GM.getValue
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.4
+// @version         0.4.5
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -64,7 +64,6 @@ async function init() {
 
     initCSS();
     patchJSONParse();
-    patchVideoPlay();
 
     await initCommands();
 
@@ -80,7 +79,6 @@ let videoRoot;
 
 async function getVideo() {
     videoRoot = await asyncQuerySelector("video[src]");
-    console.log("Acgou o video");
 }
 
 async function initCommands() {
@@ -141,6 +139,7 @@ async function initVideo() {
         initVolumeSlider(videoRoot);
     }
 
+    videoRoot.autoplay = getState("autoplay");
     videoRoot.loop = getState("loop");
 }
 
@@ -207,17 +206,17 @@ async function initVolumeSlider(video) {
 
 function interVideo(video) {
     let intersecting = true;
-    const originalPlay = video.play;
+    // const originalPlay = video.play;
 
-    video.play = function () {
-        const stackTrace = new Error().stack;
+    // video.play = function () {
+    //     const stackTrace = new Error().stack;
 
-        if (!intersecting && stackTrace.includes("emit")) {
-            return Promise.reject(new Error("Prevent video autoplay when not visible"));
-        }
+    //     if (!intersecting && stackTrace.includes("emit")) {
+    //         return Promise.reject(new Error("Prevent video autoplay when not visible"));
+    //     }
 
-        return originalPlay.call(this);
-    };
+    //     return originalPlay.call(this);
+    // };
 
     const handleIntersection = ([entry]) => {
         if (!entry.isIntersecting) {
@@ -236,10 +235,9 @@ function interVideo(video) {
 function initVideoControls() {
     window.addEventListener("keydown", ev => {
         const key = ev.code;
-
-        let timeStep = ev.shiftKey ? 10 : 5;
-        let volumeStep = ev.shiftKey ? 0.1 : 0.05;
-        let playbackStep = 0.1;
+        const timeStep = ev.shiftKey ? 10 : 5;
+        const volumeStep = ev.shiftKey ? 0.1 : 0.05;
+        const playbackStep = 0.1;
 
         switch (key) {
             case "KeyF":
@@ -293,7 +291,6 @@ function initVideoControls() {
             default:
                 break;
         }
-        console.log(ev);
     });
 }
 
@@ -415,18 +412,7 @@ function patchJSONParse() {
 }
 
 function patchVideoPlay() {
-    const originalPlay = HTMLVideoElement.prototype.play;
-
-    HTMLVideoElement.prototype.play = function () {
-        const stackTrace = new Error().stack;
-
-        if (!getState("autoplay") && stackTrace.includes("emit")) {
-            this.pause();
-            return Promise.reject(new Error("Autoplay disabled"));
-        }
-
-        return originalPlay.call(this);
-    };
+    console.log("Patch play");
 }
 
 function initCSS() {
