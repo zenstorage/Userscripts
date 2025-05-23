@@ -10,7 +10,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.6.2
+// @version         0.4.7
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -94,6 +94,9 @@ class RedgifsTweaks {
 
             this.sendParentDomain();
             log("Ready to sent parent domain");
+
+            this.downloadOnTop();
+            log("Ready to download on top window");
 
             return;
         }
@@ -426,6 +429,9 @@ class RedgifsTweaks {
                 url: vUrl,
                 responseType: "blob",
                 onprogress: ev => {
+                    // TODO: Adicionar um método para comunicação entre window/parent
+                    if (!downloadElementEntry) return;
+
                     const loaded = (ev.loaded / ev.total) * 100;
                     const progress = (loaded / 100) * downloadElementEntry.offsetWidth;
 
@@ -501,7 +507,7 @@ class RedgifsTweaks {
             if (!e.data?.redgifsURL) return;
 
             log("Downloading: ", e.data.redgifsURL);
-            downloadAsBlob(e.data.redgifsURL);
+            this.downloadAsBlob(e.data.redgifsURL);
         };
 
         unsafeWindow.addEventListener("message", messageFunc);
