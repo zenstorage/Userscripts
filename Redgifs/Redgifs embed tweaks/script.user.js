@@ -10,7 +10,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.6
+// @version         0.4.6.1
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -182,6 +182,8 @@ class RedgifsTweaks {
         await GM.setValue("blacklist", [...blacklist]);
         unsafeWindow.location.reload();
     }
+
+    setParentWindow() {}
 
     detectButtonsClick() {
         const buttons = document.querySelector(".buttons");
@@ -382,8 +384,6 @@ class RedgifsTweaks {
         GM.addStyle(".userInfo, .logo, #shareButton { display: none !important; }");
     }
 
-    debugControl() {}
-
     async downloadAsBlob(vUrl, downloadElementEntry) {
         if (isIframe) {
             return unsafeWindow.parent.postMessage({ redgifsURL: vUrl }, "*");
@@ -416,7 +416,7 @@ class RedgifsTweaks {
 
             URL.revokeObjectURL(url);
         } catch (error) {
-            console.error("Error downloading video:", error);
+            error("Error downloading video:", error);
         }
     }
 
@@ -497,7 +497,7 @@ const tweaks = new RedgifsTweaks();
 tweaks.init();
 
 GM.addStyle(`
-.buttons > input {
+#root > .App .embeddedPlayer .buttons > input {
     display: none;
     position: absolute;
     top: -7px;
@@ -518,10 +518,10 @@ GM.addStyle(`
         border-radius: 0.3rem;
     }
 }
-.buttons:has(.soundOn:hover, .soundOff:hover) > input, .buttons > input:hover {
+#root > .App .embeddedPlayer .buttons:has(.soundOn:hover, .soundOff:hover) > input, .buttons > input:hover {
     display: block;
 }
-.hidden {
+#root > .App .embeddedPlayer .hidden {
     pointer-events: none;
     opacity: 0;
     overflow: hidden;
