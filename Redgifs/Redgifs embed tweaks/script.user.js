@@ -20,6 +20,11 @@
 const domain = unsafeWindow.location.hostname;
 const path = unsafeWindow.location.pathname;
 const isIframe = unsafeWindow !== unsafeWindow.parent;
+const MESSAGE_TYPES = {
+    REQUEST_DOMAIN: "requestDomain",
+    PARENT_DOMAIN: "redgifsParentDomain",
+};
+let parentDomain;
 
 const log = (...args) => console.log("[RET]:", ...args);
 
@@ -29,6 +34,7 @@ const click = (element, eventObj = { bubbles: true, cancelable: true }) => eleme
 
 class RedgifsTweaks {
     video;
+    blacklist;
     commands = {
         autoplay: {
             label: "Autoplay",
@@ -78,13 +84,17 @@ class RedgifsTweaks {
     };
 
     async init() {
-        if (domain !== "www.redgifs.com" && isIframe) {
-            return;
-        }
+        this.blacklist = await GM.getValue("blacklist", []);
 
         if (domain !== "www.redgifs.com") {
             log("Running in: ", unsafeWindow.location.href);
-            tweaks.loadCommandsExternal();
+
+            await this.loadCommandsExternal();
+            log("Commands external initialized");
+
+            this.sendParentDomain();
+            log("Ready to sent parent domain");
+
             return;
         }
 
@@ -92,8 +102,18 @@ class RedgifsTweaks {
             return;
         }
 
-        console.group(unsafeWindow.location.href || "RET");
+        console.group(unsafeWindow.location.href);
         try {
+            if (this.blacklist.includes(parentDomain)) {
+                log("Aborted [RET], domain in blacklist.");
+                return;
+            }
+
+            if (isIframe) {
+                this.receiveParentDomain();
+                log("Ready to receive parent domain");
+            }
+
             this.patchJSONParse();
             log("Patched JSON.parse");
 
@@ -101,7 +121,7 @@ class RedgifsTweaks {
             log("Video initialized:", this.video);
 
             await tweaks.loadCommandsEmbed();
-            log("Commands initialized:", this.commands);
+            log("Commands embed initialized:", this.commands);
         } catch (err) {
             error("Error on init video:", err);
         }
@@ -161,10 +181,10 @@ class RedgifsTweaks {
     }
 
     async loadCommandsExternal() {
-        const blacklist = new Set(await GM.getValue("blacklist", []));
-        const isBlacklisted = blacklist.has(domain);
+        const blacklistMap = new Set(this.blacklist);
+        const isBlacklisted = blacklistMap.has(domain);
 
-        GM.registerMenuCommand(`${isBlacklisted ? "Enable" : "Disable"} for this site`, () => this.onClickCommandExternal(isBlacklisted, blacklist));
+        GM.registerMenuCommand(`${isBlacklisted ? "Enable" : "Disable"} for this site`, () => this.onClickCommandExternal(isBlacklisted, blacklistMap));
     }
 
     async onClickCommandEmbed(key, state) {
@@ -172,18 +192,57 @@ class RedgifsTweaks {
         unsafeWindow.location.reload();
     }
 
-    async onClickCommandExternal(isBlacklisted, blacklist) {
+    async onClickCommandExternal(isBlacklisted, blacklistMap) {
         if (isBlacklisted) {
-            blacklist.delete(domain);
+            blacklistMap.delete(domain);
         } else {
-            blacklist.add(domain);
+            blacklistMap.add(domain);
         }
 
-        await GM.setValue("blacklist", [...blacklist]);
+        await GM.setValue("blacklist", [...blacklistMap]);
         unsafeWindow.location.reload();
     }
 
-    setParentWindow() {}
+    sendParentDomain() {
+        let sourceParent;
+
+        const handleDomainRequest = e => {
+            if (isIframe) {
+                unsafeWindow.parent.postMessage({ request: MESSAGE_TYPES.REQUEST_DOMAIN }, "*");
+                sourceParent = e.source;
+            } else {
+                e.source.postMessage({ [MESSAGE_TYPES.PARENT_DOMAIN]: domain }, "*");
+            }
+        };
+
+        const handleParentDomainMessage = e => {
+            if (sourceParent) {
+                sourceParent.postMessage({ [MESSAGE_TYPES.PARENT_DOMAIN]: e.data[MESSAGE_TYPES.PARENT_DOMAIN] }, "*");
+            }
+        };
+
+        const messageFunc = e => {
+            if (e.data.request === MESSAGE_TYPES.REQUEST_DOMAIN) {
+                handleDomainRequest(e);
+            } else if (e.data[MESSAGE_TYPES.PARENT_DOMAIN]) {
+                handleParentDomainMessage(e);
+            }
+        };
+
+        unsafeWindow.addEventListener("message", messageFunc);
+    }
+
+    receiveParentDomain() {
+        const messageFunc = e => {
+            if (!e.data.redgifsParentDomain) return;
+
+            log("Received parent domain: ", e.data.redgifsParentDomain);
+            parentDomain = e.data.redgifsParentDomain;
+        };
+
+        unsafeWindow.addEventListener("message", messageFunc);
+        unsafeWindow.parent.postMessage({ request: "domain" }, "*");
+    }
 
     detectButtonsClick() {
         const buttons = document.querySelector(".buttons");
@@ -193,28 +252,23 @@ class RedgifsTweaks {
         }
 
         buttons.onclick = ev => {
-            const enableSound = ev.target.closest(".soundOff");
-            if (enableSound) {
-                localStorage.setItem("enableSound", 1);
-                return;
-            }
+            const target = ev.target;
 
-            const disableSound = ev.target.closest(".soundOn");
-            if (disableSound) {
-                localStorage.removeItem("enableSound");
-                return;
-            }
+            console.log(target.closest(".soundOff"));
 
-            const setHD = ev.target.closest(".gifQuality:has([d^='M1 12C1'])");
-            if (setHD) {
-                localStorage.setItem("enableHD", 1);
-                return;
-            }
-
-            const setSD = ev.target.closest(".gifQuality:has([d^='M1.16712'])");
-            if (setSD) {
-                localStorage.removeItem("enableHD");
-                return;
+            switch (true) {
+                case !!target.closest(".soundOff"):
+                    localStorage.setItem("enableSound", 1);
+                    break;
+                case !!target.closest(".soundOn"):
+                    localStorage.removeItem("enableSound");
+                    break;
+                case !!target.closest(".gifQuality:has([d^='M1 12C1'])"):
+                    localStorage.setItem("enableHD", 1);
+                    break;
+                case !!target.closest(".gifQuality:has([d^='M1.16712'])"):
+                    localStorage.removeItem("enableHD");
+                    break;
             }
         };
     }
@@ -231,6 +285,8 @@ class RedgifsTweaks {
         if (!state) return;
 
         const volumeContainer = document.querySelector(".buttons:has(> div > .soundOff,> div > .soundOn)");
+        if (!volumeContainer) return;
+
         const inputRange = document.createElement("input");
         this.volumeSliderControl.inputRange = inputRange;
         inputRange.type = "range";
@@ -242,13 +298,8 @@ class RedgifsTweaks {
         inputRange.oninput = e => {
             const volume = e.target.value;
             this.video.volume = volume;
-            localStorage.setItem("volume", volume);
 
-            if (volume > 0) {
-                click(document.querySelector(".soundOff"));
-            } else {
-                click(document.querySelector(".soundOn"));
-            }
+            this.updateVolumeUI();
         };
         inputRange.onmouseup = e => e.stopImmediatePropagation();
 
@@ -275,13 +326,13 @@ class RedgifsTweaks {
         }
 
         if (volume) {
-            this.video.volume = +volume > 1 ? +volume / 100 : +volume;
+            this.video.volume = Math.min(1, +volume);
         }
 
         log("Video prefs loaded");
 
         this.detectButtonsClick();
-        log("Detect buttons clicks initialized:", this.video);
+        log("Detect buttons clicks initialized");
     }
 
     pauseVideoControl(state) {
@@ -299,12 +350,10 @@ class RedgifsTweaks {
         observer.observe(this.video);
     }
 
-    // TODO: Adicionar um método volumeControl para setar um proxy no volume inves de checar o ArrowUp|ArrowDown no videoControl
-
     videoControl(state) {
         if (!state) return;
 
-        window.addEventListener("keydown", ev => {
+        const keyActionHandler = ev => {
             const key = ev.code;
             const timeStep = ev.shiftKey ? 10 : 5;
             const volumeStep = ev.shiftKey ? 0.1 : 0.05;
@@ -314,62 +363,45 @@ class RedgifsTweaks {
                 case "KeyF":
                     document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
                     break;
-
                 case "KeyM":
                     this.video.muted = !this.video.muted;
                     break;
-
                 case "Space":
                     this.video.paused ? this.video.play() : this.video.pause();
                     break;
-
                 case "ArrowLeft":
                     this.video.currentTime -= timeStep;
                     break;
-
                 case "ArrowRight":
                     this.video.currentTime += timeStep;
                     break;
-
                 case "ArrowUp":
                     this.video.volume = Math.min(1, this.video.volume + volumeStep);
+                    this.updateVolumeUI();
                     break;
-
                 case "ArrowDown":
                     this.video.volume = Math.max(0, this.video.volume - volumeStep);
+                    this.updateVolumeUI();
                     break;
-
                 case "Minus":
                     this.video.playbackRate -= playbackStep;
-
                     break;
                 case "Equal":
                     this.video.playbackRate += playbackStep;
                     break;
-
                 case "Backspace":
                     this.video.playbackRate = 1;
                     break;
-
                 case "Home":
                     this.video.currentTime = 0;
                     break;
-
                 case "End":
                     this.video.currentTime = this.video.duration;
                     break;
             }
+        };
 
-            if (key === "ArrowUp" || key === "ArrowDown") {
-                this.volumeSliderControl.inputRange.value = this.video.volume;
-
-                if (this.video.volume > 0) {
-                    click(document.querySelector(".soundOff"));
-                } else {
-                    click(document.querySelector(".soundOn"));
-                }
-            }
-        });
+        window.addEventListener("keydown", keyActionHandler);
     }
 
     downloadButtonControl(state) {
@@ -475,6 +507,17 @@ class RedgifsTweaks {
         unsafeWindow.addEventListener("message", messageFunc);
     }
 
+    updateVolumeUI() {
+        this.volumeSliderControl.inputRange.value = this.video.volume;
+        localStorage.setItem("volume", this.video.volume);
+
+        if (this.video.volume > 0) {
+            click(document.querySelector(".soundOff"));
+        } else {
+            click(document.querySelector(".soundOn"));
+        }
+    }
+
     patchJSONParse() {
         const originalJParse = JSON.parse;
 
@@ -519,9 +562,9 @@ GM.addStyle(`
     }
 }
 #root > .App .embeddedPlayer .buttons:has(.soundOn:hover, .soundOff:hover) > input, .buttons > input:hover {
-    display: block;
+    display: block !important;
 }
-#root > .App .embeddedPlayer .hidden {
+html:has(> head > meta[property="og:site_name"][content="RedGIFs"]) .hidden {
     pointer-events: none;
     opacity: 0;
     overflow: hidden;
