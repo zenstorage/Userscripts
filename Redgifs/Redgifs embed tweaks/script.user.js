@@ -10,7 +10,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.6.1
+// @version         0.4.6.2
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
