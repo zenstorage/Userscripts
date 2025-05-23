@@ -111,11 +111,11 @@ function getDownloadButton(gifID) {
 GM.addStyle(`
     /* Annoyances */
     .bannerWrapper, .SideBar-Item:has(> [class*="liveAdButton"]) {
-        display: none!important;
+        display: none !important;
     }
     .bannerWrapper, div:has(> ._aTab_17ta5_1) {
-        visibility: hidden!important;
-        opacity: 0!important;
+        visibility: hidden !important;
+        opacity: 0 !important;
     }
 
     /* Download button/list */
