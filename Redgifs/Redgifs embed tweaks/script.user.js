@@ -10,7 +10,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.7.1
+// @version         0.4.7.2
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -81,15 +81,16 @@ class RedgifsTweaks {
 
     async init() {
         this.blacklist = await GM.getValue("blacklist", []);
+        log("Blacklist loaded:", this.blacklist);
 
         if (domain !== "www.redgifs.com") {
-            log("Running in: ", unsafeWindow.location.href);
+            log("Running in:", unsafeWindow.location.href);
 
             await this.loadCommandsExternal();
             log("Commands external initialized");
 
             this.sendParentDomain();
-            log("Ready to sent parent domain");
+            log("Ready to send parent domain");
 
             this.downloadOnTop();
             log("Ready to download on top window");
@@ -104,10 +105,10 @@ class RedgifsTweaks {
         console.group(unsafeWindow.location.href);
         try {
             if (isIframe) {
+                log("Running in iframe, ready to receive parent domain");
                 await this.receiveParentDomain();
-                log("Ready to receive parent domain");
             }
-            log("BLACKLIST:", this.blacklist, parentDomain);
+
             if (this.blacklist.includes(parentDomain)) {
                 log("Aborted [RET], domain in blacklist.");
                 return;
@@ -235,7 +236,7 @@ class RedgifsTweaks {
                 if (!e.data.redgifsParentDomain) return;
 
                 parentDomain = e.data.redgifsParentDomain;
-                log("Received parent domain: ", parentDomain);
+                log("Received parent domain:", parentDomain);
                 resolve();
             };
 
