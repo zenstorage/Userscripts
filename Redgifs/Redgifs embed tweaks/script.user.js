@@ -10,7 +10,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.7
+// @version         0.4.7.1
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -20,10 +20,6 @@
 const domain = unsafeWindow.location.hostname;
 const path = unsafeWindow.location.pathname;
 const isIframe = unsafeWindow !== unsafeWindow.parent;
-const MESSAGE_TYPES = {
-    REQUEST_DOMAIN: "requestDomain",
-    PARENT_DOMAIN: "redgifsParentDomain",
-};
 let parentDomain;
 
 const log = (...args) => console.log("[RET]:", ...args);
@@ -107,14 +103,14 @@ class RedgifsTweaks {
 
         console.group(unsafeWindow.location.href);
         try {
+            if (isIframe) {
+                await this.receiveParentDomain();
+                log("Ready to receive parent domain");
+            }
+            log("BLACKLIST:", this.blacklist, parentDomain);
             if (this.blacklist.includes(parentDomain)) {
                 log("Aborted [RET], domain in blacklist.");
                 return;
-            }
-
-            if (isIframe) {
-                this.receiveParentDomain();
-                log("Ready to receive parent domain");
             }
 
             this.patchJSONParse();
@@ -209,42 +205,43 @@ class RedgifsTweaks {
     sendParentDomain() {
         let sourceParent;
 
-        const handleDomainRequest = e => {
+        const handleDomainRequest = event => {
             if (isIframe) {
-                unsafeWindow.parent.postMessage({ request: MESSAGE_TYPES.REQUEST_DOMAIN }, "*");
-                sourceParent = e.source;
+                unsafeWindow.parent.postMessage({ request: "domain" }, "*");
+                sourceParent = event.source;
             } else {
-                e.source.postMessage({ [MESSAGE_TYPES.PARENT_DOMAIN]: domain }, "*");
+                event.source.postMessage({ redgifsParentDomain: domain }, "*");
             }
         };
 
-        const handleParentDomainMessage = e => {
-            if (sourceParent) {
-                sourceParent.postMessage({ [MESSAGE_TYPES.PARENT_DOMAIN]: e.data[MESSAGE_TYPES.PARENT_DOMAIN] }, "*");
-            }
+        const handleParentDomainMessage = event => {
+            sourceParent.postMessage({ redgifsParentDomain: event.data.redgifsParentDomain }, "*");
         };
 
-        const messageFunc = e => {
-            if (e.data.request === MESSAGE_TYPES.REQUEST_DOMAIN) {
-                handleDomainRequest(e);
-            } else if (e.data[MESSAGE_TYPES.PARENT_DOMAIN]) {
-                handleParentDomainMessage(e);
+        const messageFunc = event => {
+            if (event.data.request === "domain") {
+                handleDomainRequest(event);
+            } else if (event.data.redgifsParentDomain && sourceParent) {
+                handleParentDomainMessage(event);
             }
         };
 
         unsafeWindow.addEventListener("message", messageFunc);
     }
 
-    receiveParentDomain() {
-        const messageFunc = e => {
-            if (!e.data.redgifsParentDomain) return;
+    async receiveParentDomain() {
+        return new Promise(resolve => {
+            const messageFunc = e => {
+                if (!e.data.redgifsParentDomain) return;
 
-            log("Received parent domain: ", e.data.redgifsParentDomain);
-            parentDomain = e.data.redgifsParentDomain;
-        };
+                parentDomain = e.data.redgifsParentDomain;
+                log("Received parent domain: ", parentDomain);
+                resolve();
+            };
 
-        unsafeWindow.addEventListener("message", messageFunc);
-        unsafeWindow.parent.postMessage({ request: "domain" }, "*");
+            unsafeWindow.addEventListener("message", messageFunc);
+            unsafeWindow.parent.postMessage({ request: "domain" }, "*");
+        });
     }
 
     detectButtonsClick() {
@@ -331,8 +328,6 @@ class RedgifsTweaks {
         if (volume) {
             this.video.volume = Math.min(1, +volume);
         }
-
-        log("Video prefs loaded");
 
         this.detectButtonsClick();
         log("Detect buttons clicks initialized");
