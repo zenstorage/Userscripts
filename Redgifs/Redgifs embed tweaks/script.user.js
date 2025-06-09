@@ -274,7 +274,9 @@ class RedgifsTweaks {
 	}
 
 	autoplayControl(state) {
-		this.video.oncanplay = () => this.video.play();
+		if (state) {
+			this.video.oncanplay = () => this.video.play();
+		}
 		this.video.autoplay = state;
 	}
 
