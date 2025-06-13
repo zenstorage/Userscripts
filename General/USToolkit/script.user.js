@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            USToolkit
 // @namespace       https://greasyfork.org/pt-BR/users/821661
-// @version         0.0.2
+// @version         0.0.4
 // @run-at          document-start
 // @author          hdyzen
 // @description     simple toolkit to help me create userscripts
@@ -17,8 +17,8 @@
 
 (() => {
 	function observer(func) {
-		const observer = new MutationObserver(() => {
-			const disconnect = func();
+		const observer = new MutationObserver((mut) => {
+			const disconnect = func(mut);
 
 			if (disconnect === true) {
 				observer.disconnect();
@@ -35,28 +35,20 @@
 				resolve(element);
 			}
 
-			const mutationsHandler = () => {
+			observer(() => {
 				const target = document.querySelector(selector);
 				if (target) {
-					observer.disconnect();
 					resolve(target);
+					return true;
 				}
-			};
-
-			const observer = new MutationObserver(mutationsHandler);
-
-			observer.observe(document.documentElement || document, {
-				childList: true,
-				subtree: true,
 			});
 
 			setTimeout(() => {
 				observer.disconnect();
-				reject(`Timeout ${timeoutSeconds} seconds!`);
+				reject(`[UST.waitElement] Timeout ${timeoutSeconds} seconds!`);
 			}, timeoutSeconds * 1000);
 		});
 	}
-	const asyncQuerySelector = waitElement;
 
 	function matchProp(obj, propChain) {
 		if (!obj || typeof propChain !== "string") {
@@ -138,7 +130,7 @@
 		const originalMethod = owner[methodName];
 
 		if (typeof originalMethod !== "function") {
-			throw new Error(`The method “${methodName}” was not found in the object "${owner}".`);
+			throw new Error(`[UST.patch] The method “${methodName}” was not found in the object "${owner}".`);
 		}
 
 		const proxy = new Proxy(originalMethod, handler);
@@ -212,7 +204,11 @@
 
 	function handleArrayRule(container, rule) {
 		const [subSelector, ...propsToGet] = rule;
-		const element = !subSelector ? container : container.querySelector(subSelector);
+		if (!subSelector) {
+			console.log(rule);
+			throw new Error("[UST.scrape] No subselector provided as the first item in the rule");
+		}
+		const element = container.querySelector(subSelector);
 		return extractProps(element, propsToGet);
 	}
 
@@ -239,7 +235,7 @@
 				continue;
 			}
 
-			console.warn(`[USToolkit.scrape] Rule for key “${key}” has an unsupported type.`);
+			console.warn(`[UST.scrape] Rule for key “${key}” has an unsupported type.`);
 		}
 		return item;
 	}
@@ -253,114 +249,33 @@
 			return processObjectSchema(container, schema);
 		}
 
-		console.warn("[USToolkit.scrape] Invalid schema format.");
+		console.warn("[UST.scrape] Invalid schema format.");
 		return {};
 	}
 
 	function scrape(containerSelector, schema, scope = document) {
 		const containers = scope.querySelectorAll(containerSelector);
 		const results = [];
-
 		for (const container of containers) {
 			const item = processContainer(container, schema);
 			results.push(item);
 		}
-
 		return results;
 	}
 
-	const storage = {
-		set(key, value) {
-			GM_setValue(key, value);
-		},
-
-		get(key, defaultValue) {
-			return GM_getValue(key, defaultValue);
-		},
-	};
-
-	const menuManager = {
-		_commands: {},
-
-		add(id, options) {
-			if (this._commands[id]) {
-				console.warn(`[USToolkit.menu] The command with ID “${id}” already exists. Use update() to modify it.`);
-				return;
-			}
-			this._commands[id] = { ...options };
-			GM_registerMenuCommand(options.caption, options.onClick, options.accessKey);
-		},
-
-		remove(id) {
-			const command = this._commands[id];
-			if (command) {
-				GM_unregisterMenuCommand(command.caption);
-				delete this._commands[id];
-			}
-		},
-
-		update(id, newOptions) {
-			const oldCommand = this._commands[id];
-			if (!oldCommand) {
-				console.warn(`[USToolkit.menu] Attempt to update a non-existent command with ID “${id}”.`);
-				return;
-			}
-
-			GM_unregisterMenuCommand(oldCommand.caption);
-
-			const newCommand = { ...oldCommand, ...newOptions };
-			this._commands[id] = newCommand;
-			GM_registerMenuCommand(newCommand.caption, newCommand.onClick, newCommand.accessKey);
-		},
-
-		addToggle(options) {
-			const { id, onCaption, offCaption, onAction, offAction, initialState = false, storageKey, accessKey } = options;
-
-			let currentState = window.UST.storage && storageKey ? window.UST.storage.get(storageKey, initialState) : initialState;
-
-			const updateMenu = (state) => {
-				this.update(id, {
-					caption: state ? onCaption : offCaption,
-					onClick: handleClick,
-				});
-			};
-
-			const handleClick = () => {
-				currentState = !currentState;
-
-				if (currentState) {
-					onAction();
-				} else {
-					offAction();
-				}
-
-				if (window.UST.storage && storageKey) {
-					window.UST.storage.set(storageKey, currentState);
-				}
-
-				updateMenu(currentState);
-			};
-
-			this.add(id, {
-				caption: currentState ? onCaption : offCaption,
-				onClick: handleClick,
-				accessKey,
-			});
-
-			if (currentState) {
-				onAction();
-			} else {
-				offAction();
-			}
-		},
-	};
+	function queryEach(selector, func) {
+		const nodes = document.querySelectorAll(selector);
+		for (const node of nodes) {
+			func(node);
+		}
+		return nodes;
+	}
 
 	window.UST = window.UST || {};
 
 	Object.assign(window.UST, {
 		observer,
 		waitElement,
-		asyncQuerySelector,
 		matchProp,
 		handleArray,
 		handleObject,
@@ -371,7 +286,6 @@
 		onUrlChange,
 		request,
 		scrape,
-		storage,
-		menuManager,
+		queryEach,
 	});
 })();
