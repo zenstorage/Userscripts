@@ -2,7 +2,11 @@
 // @name            Redgifs Embed Tweaks (RET)
 // @namespace       https://greasyfork.org/pt-BR/users/821661
 // @match           https://*/*
+// @exclude         /^https:\/\/www.redgifs.com\/(?!ifr\/).*$/
 // @exclude-match   https://www.google.com/recaptcha/*
+// @exclude-match   https://challenges.cloudflare.com/*
+// @exclude-match   https://newassets.hcaptcha.com/captcha/*
+// @exclude-match   https://service.mtcaptcha.com/*
 // @grant           GM.xmlHttpRequest
 // @grant           GM.addStyle
 // @grant           GM.setValue
@@ -10,7 +14,7 @@
 // @grant           GM.getValues
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.7.3
+// @version         0.4.7.4
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -26,7 +30,8 @@ const log = (...args) => console.log("[RET]:", ...args);
 
 const error = (...args) => console.error("[RET]:", ...args);
 
-const click = (element, eventObj = { bubbles: true, cancelable: true }) => element?.dispatchEvent(new MouseEvent("click", eventObj));
+const click = (element, eventObj = { bubbles: true, cancelable: true }) =>
+	element?.dispatchEvent(new MouseEvent("click", eventObj));
 
 class RedgifsTweaks {
 	video;
@@ -183,7 +188,9 @@ class RedgifsTweaks {
 		const blacklistMap = new Set(this.blacklist);
 		const isBlacklisted = blacklistMap.has(domain);
 
-		GM.registerMenuCommand(`${isBlacklisted ? "Enable" : "Disable"} for this site`, () => this.onClickCommandExternal(isBlacklisted, blacklistMap));
+		GM.registerMenuCommand(`${isBlacklisted ? "Enable" : "Disable"} for this site`, () =>
+			this.onClickCommandExternal(isBlacklisted, blacklistMap),
+		);
 	}
 
 	async onClickCommandEmbed(key, state) {
@@ -318,7 +325,11 @@ class RedgifsTweaks {
 	savePrefsControl(state) {
 		if (!state) return;
 
-		const [enableHD, enableSound, volume] = [localStorage.getItem("enableHD"), localStorage.getItem("enableSound"), localStorage.getItem("volume")];
+		const [enableHD, enableSound, volume] = [
+			localStorage.getItem("enableHD"),
+			localStorage.getItem("enableSound"),
+			localStorage.getItem("volume"),
+		];
 
 		if (enableHD) {
 			click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
@@ -466,7 +477,12 @@ class RedgifsTweaks {
         </i>
         `;
 		const downloadButton = document.createElement("div");
-		const downloadEntry = arr.map((e) => `<div class="download-entry" data-url="${e[1]}"><span class="download-dw">${e[0]}</span>${copySvg}</div>`).join("\n");
+		const downloadEntry = arr
+			.map(
+				(e) =>
+					`<div class="download-entry" data-url="${e[1]}"><span class="download-dw">${e[0]}</span>${copySvg}</div>`,
+			)
+			.join("\n");
 		downloadButton.id = "downloadOpen";
 
 		downloadButton.innerHTML = `
