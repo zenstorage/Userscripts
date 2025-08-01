@@ -12,9 +12,10 @@
 // @grant           GM.setValue
 // @grant           GM.getValue
 // @grant           GM.getValues
+// @grant           GM.addValueChangeListener
 // @grant           GM.registerMenuCommand
 // @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.7.5
+// @version         0.4.8
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -62,6 +63,11 @@ class RedgifsTweaks {
 			state: true,
 			applyEffect: (state) => this.savePrefsControl(state),
 		},
+		syncPrefs: {
+			label: "Sync prefs",
+			state: true,
+			applyEffect: (state) => this.syncPrefsControl(state),
+		},
 		pauseVideo: {
 			label: "Pause video when not visible",
 			state: true,
@@ -85,20 +91,20 @@ class RedgifsTweaks {
 	};
 
 	async init() {
-		this.blacklist = await GM.getValue("blacklist", []);
-		log("Blacklist loaded:", this.blacklist);
+		// this.blacklist = await GM.getValue("blacklist", []);
+		// log("Blacklist loaded:", this.blacklist);
 
 		if (domain !== "www.redgifs.com") {
-			log("Running in:", unsafeWindow.location.href);
+			// log("Running in:", unsafeWindow.location.href);
 
-			await this.loadCommandsExternal();
-			log("Commands external initialized");
+			// await this.loadCommandsExternal();
+			// log("Commands external initialized");
 
-			this.sendParentDomain();
-			log("Ready to send parent domain");
+			// this.sendParentDomain();
+			// log("Ready to send parent domain");
 
 			this.downloadOnTop();
-			log("Ready to download on top window");
+			// log("Ready to download on top window");
 
 			return;
 		}
@@ -107,38 +113,44 @@ class RedgifsTweaks {
 			return;
 		}
 
-		console.group(unsafeWindow.location.href);
+		// console.group(unsafeWindow.location.href);
 		try {
 			if (isIframe) {
-				log("Running in iframe, ready to receive parent domain");
-				await this.receiveParentDomain();
+				// log("Running in iframe, ready to receive parent domain");
+				// await this.receiveParentDomain();
 			}
 
-			if (this.blacklist.includes(parentDomain)) {
-				log("Aborted [RET], domain in blacklist.");
-				return;
-			}
+			// if (this.blacklist.includes(parentDomain)) {
+			//     // log("Aborted [RET], domain in blacklist.");
+			//     return;
+			// }
 
 			this.patchJSONParse();
-			log("Patched JSON.parse");
+			// log("Patched JSON.parse");
 
 			this.video = await this.getVideo();
-			log("Video initialized:", this.video);
+			// log("Video initialized:", this.video);
 
 			await tweaks.loadCommandsEmbed();
-			log("Commands embed initialized:", this.commands);
+			// log("Commands embed initialized:", this.commands);
 		} catch (err) {
 			error("Error on init video:", err);
 		}
-		console.groupEnd();
+		// console.groupEnd();
 	}
 
 	getVideo() {
 		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				observer.disconnect();
+				reject("Not possible get video after 10 seconds.");
+			}, 10000);
+
 			const mutationsHandler = () => {
 				const video = document.querySelector("video[src]:not([src=''])");
 
 				if (video) {
+					clearTimeout(timeout);
 					observer.disconnect();
 					resolve(video);
 				}
@@ -152,26 +164,19 @@ class RedgifsTweaks {
 				attributes: true,
 				attributeFilter: ["src"],
 			});
-
-			setTimeout(() => {
-				observer.disconnect();
-				reject("Not possible get video after 10 seconds.");
-			}, 10000);
 		});
 	}
 
 	async loadCommandsEmbed() {
-		const valuesLocal = Object.fromEntries(Object.entries(this.commands).map(([key, command]) => [key, command.state]));
-		const valuesStored = await GM.getValues(valuesLocal);
-
 		for (const key in this.commands) {
-			if (Object.prototype.hasOwnProperty.call(valuesStored, key)) {
-				this.commands[key].state = valuesStored[key];
+			const value = await GM.getValue(key);
+			if (value !== undefined) {
+				this.commands[key].state = value;
 			}
 
 			const command = this.commands[key];
 			const label = command.label;
-			const state = !!command.state;
+			const state = command.state;
 
 			if (command.applyEffect) {
 				command.applyEffect(state);
@@ -180,7 +185,9 @@ class RedgifsTweaks {
 				log("No effect:", key);
 			}
 
-			GM.registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, () => this.onClickCommandEmbed(key, state));
+			GM.registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, () =>
+				this.onClickCommandEmbed(key, state),
+			);
 		}
 	}
 
@@ -188,8 +195,9 @@ class RedgifsTweaks {
 		const blacklistMap = new Set(this.blacklist);
 		const isBlacklisted = blacklistMap.has(domain);
 
-		GM.registerMenuCommand(`${isBlacklisted ? "Enable" : "Disable"} for this site`, () =>
-			this.onClickCommandExternal(isBlacklisted, blacklistMap),
+		GM.registerMenuCommand(
+			`${isBlacklisted ? "Enable" : "Disable"} for this site`,
+			() => this.onClickCommandExternal(isBlacklisted, blacklistMap),
 		);
 	}
 
@@ -222,7 +230,10 @@ class RedgifsTweaks {
 		};
 
 		const handleParentDomainMessage = (event) => {
-			sourceParent.postMessage({ redgifsParentDomain: event.data.redgifsParentDomain }, "*");
+			sourceParent.postMessage(
+				{ redgifsParentDomain: event.data.redgifsParentDomain },
+				"*",
+			);
 		};
 
 		const messageFunc = (event) => {
@@ -255,35 +266,33 @@ class RedgifsTweaks {
 		const buttons = document.querySelector(".buttons");
 
 		if (!buttons) {
-			throw new Error("Can't detect buttons clicks, it's falsy");
+			throw new Error("Can't detect buttons clicks");
 		}
 
 		buttons.onclick = (ev) => {
-			const target = ev.target;
+			const button = ev.target.closest("div.button");
 
-			console.log(target.closest(".soundOff"));
+			if (!button?.matches) return;
 
 			switch (true) {
-				case !!target.closest(".soundOff"):
-					localStorage.setItem("enableSound", 1);
+				case button.matches(":has(.soundOff)"):
+					GM.setValue("enableSound", true);
 					break;
-				case !!target.closest(".soundOn"):
-					localStorage.removeItem("enableSound");
+				case button.matches(":has(.soundOn)"):
+					GM.setValue("enableSound", false);
 					break;
-				case !!target.closest(".gifQuality:has([d^='M1 12C1'])"):
-					localStorage.setItem("enableHD", 1);
+				case button.matches(":has(.gifQuality [d^='M1 12C1'])"):
+					GM.setValue("enableHD", true);
 					break;
-				case !!target.closest(".gifQuality:has([d^='M1.16712'])"):
-					localStorage.removeItem("enableHD");
+				case button.matches(":has(.gifQuality [d^='M1.16712'])"):
+					GM.setValue("enableHD", false);
 					break;
 			}
 		};
 	}
 
 	autoplayControl(state) {
-		if (state) {
-			this.video.oncanplay = () => this.video.play();
-		}
+		if (state) this.video.oncanplay = () => this.video.play();
 		this.video.autoplay = state;
 	}
 
@@ -291,10 +300,12 @@ class RedgifsTweaks {
 		this.video.loop = state;
 	}
 
-	volumeSliderControl(state) {
+	async volumeSliderControl(state) {
 		if (!state) return;
 
-		const volumeContainer = document.querySelector(".buttons:has(> div > .soundOff,> div > .soundOn)");
+		const volumeContainer = document.querySelector(
+			".buttons:has(> div > .soundOff,> div > .soundOn)",
+		);
 		if (!volumeContainer) return;
 
 		const inputRange = document.createElement("input");
@@ -303,7 +314,7 @@ class RedgifsTweaks {
 		inputRange.min = 0;
 		inputRange.max = 1;
 		inputRange.step = 0.01;
-		inputRange.value = +localStorage.getItem("volume");
+		inputRange.value = await GM.getValue("volume");
 
 		inputRange.oninput = (e) => {
 			const volume = e.target.value;
@@ -322,29 +333,58 @@ class RedgifsTweaks {
 		this.video.parentElement.onclick = (ev) => ev.preventDefault();
 	}
 
-	savePrefsControl(state) {
+	async savePrefsControl(state) {
 		if (!state) return;
 
-		const [enableHD, enableSound, volume] = [
-			localStorage.getItem("enableHD"),
-			localStorage.getItem("enableSound"),
-			localStorage.getItem("volume"),
-		];
+		GM.getValue("enableSound").then((value) => {
+			if (!value) return;
 
-		if (enableHD) {
-			click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
-		}
-
-		if (enableSound) {
 			click(document.querySelector(".soundOff"));
-		}
+		});
 
-		if (volume) {
-			this.video.volume = Math.min(1, +volume);
-		}
+		GM.getValue("enableHD").then((value) => {
+			if (!value) return;
+
+			click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+		});
+
+		GM.getValue("volume").then((value) => {
+			if (!value) return;
+
+			this.video.volume = Math.min(1, value);
+		});
 
 		this.detectButtonsClick();
 		log("Detect buttons clicks initialized");
+	}
+
+	syncPrefsControl(state) {
+		if (!state) return;
+
+		GM.addValueChangeListener("enableSound", (_name, _oldValue, newValue) => {
+			if (newValue) {
+				click(document.querySelector(".soundOff"));
+				return;
+			}
+
+			click(document.querySelector(".soundOn"));
+		});
+
+		GM.addValueChangeListener("enableHD", (_name, _oldValue, newValue) => {
+			if (newValue) {
+				click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+				return;
+			}
+
+			click(document.querySelector(".gifQuality:has([d^='M1.16712'])"));
+		});
+
+		GM.addValueChangeListener("volume", (_name, _oldValue, newValue) => {
+			if (!newValue) return;
+
+			this.video.volume = Math.min(1, newValue);
+			this.updateVolumeUI();
+		});
 	}
 
 	pauseVideoControl(state) {
@@ -373,7 +413,9 @@ class RedgifsTweaks {
 
 			switch (key) {
 				case "KeyF":
-					document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+					document.fullscreenElement
+						? document.exitFullscreen()
+						: document.documentElement.requestFullscreen();
 					break;
 				case "KeyM":
 					this.video.muted = !this.video.muted;
@@ -529,7 +571,7 @@ class RedgifsTweaks {
 
 	updateVolumeUI() {
 		this.volumeSliderControl.inputRange.value = this.video.volume;
-		localStorage.setItem("volume", this.video.volume);
+		GM.setValue("volume", this.video.volume);
 
 		if (this.video.volume > 0) {
 			click(document.querySelector(".soundOff"));
@@ -545,7 +587,9 @@ class RedgifsTweaks {
 			const result = originalJParse.call(JSON, text, reviver);
 			if (result.gif) {
 				const urls = Object.entries(result.gif.urls);
-				const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
+				const ext = urls
+					.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u])
+					.sort();
 
 				log("Creating download entries for: ", location.href);
 				tweaks.addDownloadEntries(ext);
