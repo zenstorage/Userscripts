@@ -5,7 +5,7 @@
 // @version             1.0
 // @run-at              document-start
 // @match               https://oraculo.ifoodxt.com.br/*
-// @require             http://127.0.0.1:5500/General/USToolkit/script.user.js
+// @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
 // @grant               unsafeWindow
 // @grant               GM_addStyle
 // @license             GPL-3.0-only
