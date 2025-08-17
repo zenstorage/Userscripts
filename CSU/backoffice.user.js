@@ -2,10 +2,10 @@
 // @name                Backoffice Tweaks
 // @namespace           zen
 // @description         Improve backoffice for me
-// @version             1.0
+// @version             1.0.1
 // @run-at              document-start
 // @match               https://backoffice.ifoodxt.com.br/*
-// @require             http://127.0.0.1:5500/General/USToolkit/script.user.js
+// @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
 // @grant               unsafeWindow
 // @license             GPL-3.0-only
 // ==/UserScript==
@@ -27,7 +27,6 @@ window.addEventListener("message", (event) => {
         searchButton = document.querySelector('[data-testid="search-button"]');
     }
 
-    console.log(UUID);
     uuidInput.value = UUID;
     searchButton.click();
 });

@@ -2,10 +2,10 @@
 // @name                Salesforce Tweaks
 // @namespace           zen
 // @description         Improve salesforce for me
-// @version             1.2
+// @version             1.2.1
 // @run-at              document-start
 // @match               https://ifood.lightning.force.com/*
-// @require             http://127.0.0.1:5500/General/USToolkit/script.user.js
+// @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
 // @grant               unsafeWindow
 // @grant               window.focus
 // @grant               GM_addStyle
@@ -53,17 +53,6 @@ function copyOnClick(element) {
             copyPopup.classList.add("popupActive");
             setTimeout(() => copyPopup.classList.remove("popupActive"), 2000);
         });
-    });
-}
-
-async function waitElement(selector) {
-    return new Promise((resolve, reject) => {
-        onElements.add(selector, (element) => {
-            resolve(element);
-            return true;
-        });
-
-        setTimeout(() => reject(), 5000);
     });
 }
 
@@ -120,69 +109,56 @@ onElements.per('[data-target-selection-name="sfdc:RecordField.CaseComment.IsPubl
     element.click();
 });
 
+async function prepareEmail() {
+    const fromAddressInput = await UST.waitElement(
+        '.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.ValidatedFromAddress"] a',
+    );
+    if (fromAddressInput.innerText === "Atendimento iFood <atendimento_parceiro@ifood.com.br>") return;
+    fromAddressInput.click();
+
+    const ifoodAddress = await UST.waitElement('.select-options li > a[title="Atendimento iFood <atendimento_parceiro@ifood.com.br>"]');
+    ifoodAddress.click();
+
+    const removeCopy = await UST.waitElement(
+        '.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.BccAddress"] button:has([d^="M310 254l130"])',
+    );
+    removeCopy.click();
+
+    const addUser = await UST.waitElement(
+        '.split-right > .active :not(.slds-show) [data-target-selection-name="sfdc:RecordField.EmailMessage.ToAddress"] button:has([data-key="adduser"])',
+    );
+    addUser.click();
+
+    const selectAllCheckbox = await UST.waitElement(
+        ".uiModal.open.active:has(lightning-vertical-navigation-item.slds-is-active:nth-child(1)) .listDisplays th.selectionColumnHeader .slds-checkbox_faux",
+    );
+    const accountContacts = selectAllCheckbox
+        .closest('[data-aura-class="supportEmailRecipientLookup"]')
+        .querySelector("lightning-vertical-navigation-item:nth-child(2)").shadowRoot.children[0];
+    if (accountContacts.innerText !== "Contatos da conta") return;
+    accountContacts.click();
+
+    const selectAllContacts = await UST.waitElement(
+        ".uiModal.open.active:has(lightning-vertical-navigation-item.slds-is-active) .listDisplays:not(:has(tbody > tr:nth-child(50))) th.selectionColumnHeader .slds-checkbox_faux",
+    );
+    selectAllContacts.click();
+
+    const addContacts = await UST.waitElement(
+        ".uiModal.open.active:has(lightning-vertical-navigation-item.slds-is-active:nth-child(2)) .modal-footer button:nth-child(2):not([disabled])",
+    );
+    addContacts.click();
+
+    const insertTemplateButton = await UST.waitElement('a[role="button"]:has([data-key="insert_template"])');
+    insertTemplateButton.click();
+}
+
 onElements.per('.split-right > .active [data-tab-name="Case.Enviar_Email"]', (element) => {
     if (!location.pathname.startsWith("/lightning/r/Case/")) return;
 
     element.click();
+
+    prepareEmail();
 });
-
-onElements.per('.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.ValidatedFromAddress"] a', (element) => {
-    if (
-        !location.pathname.startsWith("/lightning/r/Case/") ||
-        element.innerText !== "Atendimento iFood <atendimento_parceiro@ifood.com.br>"
-    )
-        return;
-
-    element.click();
-});
-
-onElements.per('.select-options li > a[title="Atendimento iFood <atendimento_parceiro@ifood.com.br>"]', (element) => {
-    if (!location.pathname.startsWith("/lightning/r/Case/")) return;
-
-    element.click();
-});
-
-onElements.per(
-    '.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.BccAddress"] button:has([d^="M310 254l130"])',
-    (element) => {
-        if (!location.pathname.startsWith("/lightning/r/Case/")) return;
-
-        element.click();
-    },
-);
-
-onElements.per(
-    '.split-right > .active :not(.slds-show) [data-target-selection-name="sfdc:RecordField.EmailMessage.ToAddress"] button:has([data-key="adduser"])',
-    (element) => {
-        if (!location.pathname.startsWith("/lightning/r/Case/")) return;
-
-        element.click();
-    },
-);
-
-onElements.per(".uiContainerManager > .active lightning-vertical-navigation-item a", (element) => {
-    if (!location.pathname.startsWith("/lightning/r/Case/") || element.innerText !== "Contatos da conta") return;
-
-    setTimeout(() => element.click(), 500);
-});
-
-onElements.per(
-    ".uiModal.open.active:has(lightning-vertical-navigation-item.slds-is-active:nth-child(2)) .listDisplays th.selectionColumnHeader .slds-checkbox_faux",
-    (element) => {
-        if (!location.pathname.startsWith("/lightning/r/Case/")) return;
-
-        setTimeout(() => element.click(), 500);
-    },
-);
-
-onElements.per(
-    ".uiModal.open.active:has(lightning-vertical-navigation-item.slds-is-active:nth-child(2)) .modal-footer button:nth-child(2):not([disabled])",
-    (element) => {
-        if (!location.pathname.startsWith("/lightning/r/Case/")) return;
-
-        element.click();
-    },
-);
 
 onElements.start();
 
