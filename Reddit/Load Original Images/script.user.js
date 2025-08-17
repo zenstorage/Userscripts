@@ -1,32 +1,21 @@
 // ==UserScript==
-// @name            Reddit Image Direcly (Farside)
+// @name            Reddit Image Direcly
 // @namespace       https://greasyfork.org/users/821661
 // @match           https://www.reddit.com/media?url=*
 // @grant           none
-// @version         1.0
+// @version         1.1
 // @run-at          document-start
 // @license         GPL-3.0
 // @author          hdyzen
 // @description     This script uses the farside.link gateway to redirect images direcly on reddit
 // ==/UserScript==
 
-// This script works thanks to farside.link gateway: https://github.com/benbusby/farside
-// Alternatively, you can use an extension to upload the image directly to Reddit:
-// Only for Firefox: https://addons.mozilla.org/pt-BR/firefox/addon/load-reddit-images-directly/
-
 const getUrlObj = (url) => new URL(url);
 
 const getImgUrl = (url) => {
-	const nUrl = getUrlObj(url);
-	const paramUrl = getUrlObj(nUrl.searchParams.get("url"));
-	console.log(nUrl);
+	const urlObj = getUrlObj(url);
 
-	if (paramUrl.hostname === "external-preview.redd.it") {
-		return `https://farside.link/libreddit/preview/external-pre${paramUrl.pathname + paramUrl.search}`;
-	}
-
-	const fileName = paramUrl.pathname.match(/[^-\/]+\.(?:png|jpg|jpeg)$/)?.[0];
-	return `https://farside.link/libreddit/img/${fileName}`;
+	return urlObj.searchParams.get("url");
 };
 
-window.location.href = getImgUrl(window.location.href);
+window.location.href = `https://reddit-load-images-directly.vercel.app/?url=${getImgUrl(window.location.href)}`;
