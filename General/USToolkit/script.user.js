@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name          USToolkit
 // @namespace     https://greasyfork.org/pt-BR/users/821661
-// @version       0.0.5
+// @version       0.0.6
 // @run-at        document-start
+// @match         https://*/*
 // @author        hdyzen
 // @description   simple toolkit to help me create userscripts
 // @license       MIT
@@ -1168,7 +1169,7 @@
         query,
         closest,
         injectScriptInline,
-        wait: waitElement,
+        waitElement,
         on,
         createDeepProxy,
         safeSet,
