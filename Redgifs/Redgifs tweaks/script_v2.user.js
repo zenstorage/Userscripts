@@ -5,9 +5,10 @@
 // @exclude-match       https://www.redgifs.com/ifr/*
 // @grant               GM.addStyle
 // @grant               GM.download
+// @grant               GM.xmlHttpRequest
 // @run-at              document-start
 // @require             https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version             0.4.6
+// @version             0.4.7
 // @author              hdyzen
 // @description         tweaks for redgifs page
 // @license             MIT
@@ -17,7 +18,7 @@
 const urlsMap = new Map();
 
 function observerInit() {
-    const mutationsHandler = mutations => {
+    const mutationsHandler = (mutations) => {
         for (const mutation of mutations) {
             if (mutation.type === "attributes" && mutation.target.classList.contains("GifPreview")) {
                 const sidebar = mutation.target.querySelector(".SideBar");
@@ -50,7 +51,7 @@ function patchJSONParse() {
         const result = originalJParse.call(this, text, reviver);
 
         if (Array.isArray(result.gifs)) {
-            result.gifs = result.gifs.filter(gif => {
+            result.gifs = result.gifs.filter((gif) => {
                 if (gif.cta !== null) return false;
 
                 urlsMap.set(gif.id, gif.urls);
@@ -63,21 +64,41 @@ function patchJSONParse() {
 }
 patchJSONParse();
 
-function download(ev) {
-    const url = ev.target.getAttribute("url");
+unsafeWindow.download = downloadAsBlob;
 
-    GM.download({
-        url: url,
-        name: url.split("/").at(-1),
-        onprogress(evp) {
-            const loaded = (evp.loaded / evp.total) * 100;
-            const progress = (loaded / 100) * ev.target.offsetWidth;
+async function downloadAsBlob(ev) {
+    const vUrl = ev.target.getAttribute("url");
 
-            ev.target.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
-        },
-    });
+    try {
+        const res = await GM.xmlHttpRequest({
+            url: vUrl,
+            responseType: "blob",
+            onprogress(evp) {
+                const loaded = (evp.loaded / evp.total) * 100;
+                const progress = (loaded / 100) * ev.target.offsetWidth;
+
+                ev.target.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
+            },
+        });
+
+        const url = URL.createObjectURL(res.response);
+        const link = document.createElement("a");
+        const nameVideo = vUrl.split("/").at(-1);
+
+        link.href = url;
+        link.download = nameVideo;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.log("Error downloading video:", error);
+    }
 }
-unsafeWindow.download = download;
 
 function getDownloadButton(gifID) {
     const urls = urlsMap.get(gifID);
