@@ -22,7 +22,7 @@ Solicitação do parceiro: Parceiro solicitou contestação de cancelamento (ped
 Descrição das ações: PLACEHOLDER
 CÓDIGO DE CANCELAMENTO: 417
 
-O motivo do cancelamento do pedido prevê crédito pelo motor? - SIM NÃO 
+O motivo do cancelamento do pedido prevê crédito pelo motor? - SIM NÃO
 CRÉDITO_PELO_ORÁCULO? - SIM NÃO 
 CRÉDITO_GERADO_MANUAL: SIM NÃO 
 Solução para a solicitação do parceiro: Crédito acatado negado
@@ -39,6 +39,12 @@ document.documentElement.appendChild(copyPopup);
 const onElements = new UST.OnElements({ deep: true });
 
 let backOffice;
+let autoAcceptCase = true;
+const mouseButton = {
+    0: "left",
+    1: "middle",
+    2: "right",
+};
 
 function copyOnClick(element) {
     element.style.setProperty("font-weight", "bold", "important");
@@ -57,7 +63,7 @@ function copyOnClick(element) {
 }
 
 function backOfficeHandler(element) {
-    if (!backOffice) {
+    if (!backOffice?.self) {
         backOffice = window.open(`https://backoffice.ifoodxt.com.br/orders?id=${element.innerText}`, "_blank");
         return;
     }
@@ -66,18 +72,23 @@ function backOfficeHandler(element) {
     backOffice.postMessage({ UUID: element.innerText }, "https://backoffice.ifoodxt.com.br");
 }
 
+document.addEventListener("keydown", (event) => {
+    if (event.code === "KeyA" && event.shiftKey) {
+        autoAcceptCase = !autoAcceptCase;
+        autoAcceptOnStyle.disabled = !autoAcceptCase;
+    }
+});
+
+document.addEventListener("readystatechange", () => {
+    autoAcceptOnStyle.disabled = !autoAcceptCase;
+});
+
 onElements.per('records-record-layout-item[field-label="UUID"] lightning-formatted-text', (element) => {
-    element.style.setProperty("font-weight", "bold", "important");
-    element.style.setProperty("cursor", "pointer", "important");
-
     copyOnClick(element);
-    element.addEventListener("mousedown", (event) => {
-        console.log(event);
-        if (event.button !== 1) {
-            return;
-        }
 
-        if (event.ctrlKey) {
+    element.addEventListener("mousedown", (event) => {
+        const mouseClick = mouseButton[event.button];
+        if (mouseClick === "middle" && event.ctrlKey) {
             backOfficeHandler(element);
             return;
         }
@@ -89,9 +100,6 @@ onElements.per('records-record-layout-item[field-label="UUID"] lightning-formatt
 onElements.per(
     'records-record-layout-item:is([field-label="Número do caso"], [field-label="Fornecedor ID"]) lightning-formatted-text',
     (element) => {
-        element.style.setProperty("font-weight", "bold", "important");
-        element.style.setProperty("cursor", "pointer", "important");
-
         copyOnClick(element);
     },
 );
@@ -109,6 +117,12 @@ onElements.per('[data-target-selection-name="sfdc:RecordField.CaseComment.IsPubl
     element.click();
 });
 
+onElements.per('.oneUtilityBarPanel button[title="Aceitar"]', (element) => {
+    if (!autoAcceptCase) return;
+
+    element.click();
+});
+
 async function prepareEmail() {
     const fromAddressInput = await UST.waitElement(
         '.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.ValidatedFromAddress"] a',
@@ -118,11 +132,6 @@ async function prepareEmail() {
 
     const ifoodAddress = await UST.waitElement('.select-options li > a[title="Atendimento iFood <atendimento_parceiro@ifood.com.br>"]');
     ifoodAddress.click();
-
-    const removeCopy = await UST.waitElement(
-        '.split-right > .active [data-target-selection-name="sfdc:RecordField.EmailMessage.BccAddress"] button:has([d^="M310 254l130"])',
-    );
-    removeCopy.click();
 
     const addUser = await UST.waitElement(
         '.split-right > .active :not(.slds-show) [data-target-selection-name="sfdc:RecordField.EmailMessage.ToAddress"] button:has([data-key="adduser"])',
@@ -175,8 +184,18 @@ GM_addStyle(`
     font-size: 16px;
     border-radius: .5rem;
     transition: translate .2s ease;
+    font-family: system-ui;
 }
 .popupActive {
     translate: -50% 2rem !important;
+}
+.oneUtilityBarPanel .panel-header:has([icon-name="utility:omni_channel"]) {
+    background: hsl(0deg 50% 70% / 50%);
+}
+`);
+
+const autoAcceptOnStyle = GM_addStyle(`
+.oneUtilityBarPanel .panel-header:has([icon-name="utility:omni_channel"]) {
+    background: hsl(125deg 50% 70% / 50%);
 }
 `);

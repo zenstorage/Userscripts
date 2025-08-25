@@ -15,12 +15,23 @@ const onElements = new UST.OnElements({ deep: true });
 
 onElements.per("#justification", (element) => {
     if (element.value !== "") return;
-    const selection = window.getSelection().toString();
 
-    console.log(selection);
-    navigator.clipboard.writeText(selection);
-    element.value = selection;
+    const justification = document.querySelector(".Description-sc-1dp8qcg-0 p");
+    if (!justification?.innerText) return;
+
+    const justificationText = justification.innerText.split(".")[0];
+    element.value = `${justificationText}.`;
     element.focus();
+});
+
+document.addEventListener("click", (event) => {
+    const confirmButton = event.target.closest('[type="submit"]');
+    if (!confirmButton) return;
+
+    const justification = document.querySelector("#justification");
+    if (!justification?.value) return;
+
+    navigator.clipboard.writeText(justification.value);
 });
 
 onElements.start();
