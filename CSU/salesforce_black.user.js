@@ -2,10 +2,10 @@
 // @name                Salesforce Black Tweaks
 // @namespace           zen
 // @description         Improve salesforce black for me
-// @version             1.0
+// @version             1.0.1
 // @run-at              document-start
 // @match               https://ifoodatendimento.lightning.force.com/*
-// @require             http://127.0.0.1:5500/General/USToolkit/script.user.js
+// @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
 // @icon                https://www.google.com/s2/favicons?sz=64&domain=force.com
 // @grant               unsafeWindow
 // @grant               window.focus
