@@ -2,7 +2,7 @@
 // @name                Backoffice Tweaks
 // @namespace           zen
 // @description         Improve backoffice for me
-// @version             1.0.1
+// @version             1.0.2
 // @run-at              document-start
 // @match               https://backoffice.ifoodxt.com.br/*
 // @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js

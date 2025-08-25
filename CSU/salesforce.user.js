@@ -2,7 +2,7 @@
 // @name                Salesforce Tweaks
 // @namespace           zen
 // @description         Improve salesforce for me
-// @version             1.2.1
+// @version             1.2.2
 // @run-at              document-start
 // @match               https://ifood.lightning.force.com/*
 // @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js

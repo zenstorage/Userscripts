@@ -2,7 +2,7 @@
 // @name                Oráculo Tweaks
 // @namespace           zen
 // @description         Improve oráculo for me
-// @version             1.0
+// @version             1.0.1
 // @run-at              document-start
 // @match               https://oraculo.ifoodxt.com.br/*
 // @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
