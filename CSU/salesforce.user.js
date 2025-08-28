@@ -5,7 +5,7 @@
 // @version             1.2.2
 // @run-at              document-start
 // @match               https://ifood.lightning.force.com/*
-// @require             https://update.greasyfork.org/scripts/526417/1643812/USToolkit.js
+// @require             http://127.0.0.1:5500/General/USToolkit/script.user.js
 // @grant               unsafeWindow
 // @grant               window.focus
 // @grant               GM_addStyle
@@ -40,11 +40,6 @@ const onElements = new UST.OnElements({ deep: true });
 
 let backOffice;
 let autoAcceptCase = true;
-const mouseButton = {
-    0: "left",
-    1: "middle",
-    2: "right",
-};
 
 function copyOnClick(element) {
     element.style.setProperty("font-weight", "bold", "important");
@@ -73,7 +68,11 @@ function backOfficeHandler(element) {
 }
 
 document.addEventListener("keydown", (event) => {
-    if (event.code === "KeyA" && event.shiftKey) {
+    if (
+        event.code === "KeyA" &&
+        event.shiftKey &&
+        document.querySelector('.oneUtilityBarPanel[aria-hidden="false"]:has(.panel-header [icon-name="utility:omni_channel"])')
+    ) {
         autoAcceptCase = !autoAcceptCase;
         autoAcceptOnStyle.disabled = !autoAcceptCase;
     }
@@ -87,13 +86,9 @@ onElements.per('records-record-layout-item[field-label="UUID"] lightning-formatt
     copyOnClick(element);
 
     element.addEventListener("mousedown", (event) => {
-        const mouseClick = mouseButton[event.button];
-        if (mouseClick === "middle" && event.ctrlKey) {
+        if (event.button === 1 && event.ctrlKey) {
             backOfficeHandler(element);
-            return;
         }
-
-        window.open(`https://oraculo.ifoodxt.com.br/dashboard?requester_type=partner&type=order&id=${element.innerText}`, "_blank");
     });
 });
 
