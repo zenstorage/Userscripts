@@ -2,515 +2,387 @@
 // @name            Redgifs Embed Tweaks (RET)
 // @namespace       https://greasyfork.org/pt-BR/users/821661
 // @match           https://*/*
-// @exclude         /^https:\/\/www.redgifs.com\/(?!ifr\/).*$/
 // @exclude-match   https://www.google.com/recaptcha/*
 // @exclude-match   https://challenges.cloudflare.com/*
-// @exclude-match   https://newassets.hcaptcha.com/captcha/*
-// @exclude-match   https://service.mtcaptcha.com/*
-// @grant           GM.xmlHttpRequest
-// @grant           GM.addStyle
-// @grant           GM.setValue
-// @grant           GM.getValue
-// @grant           GM.getValues
-// @grant           GM.addValueChangeListener
-// @grant           GM.registerMenuCommand
-// @require         https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version         0.4.8
+// @grant           GM_setValue
+// @grant           GM_getValue
+// @grant           GM_registerMenuCommand
+// @grant           GM_addValueChangeListener
+// @grant           GM_addStyle
+// @grant           GM_xmlhttpRequest
+// @version         0.5.0
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
 // @license         MIT
 // ==/UserScript==
 
-const domain = unsafeWindow.location.hostname;
-const path = unsafeWindow.location.pathname;
-const isIframe = unsafeWindow !== unsafeWindow.parent;
-let parentDomain;
-
-const log = (...args) => console.log("[RET]:", ...args);
-
-const error = (...args) => console.error("[RET]:", ...args);
-
-const click = (element, eventObj = { bubbles: true, cancelable: true }) =>
-	element?.dispatchEvent(new MouseEvent("click", eventObj));
-
-class RedgifsTweaks {
-	video;
-	blacklist;
-	commands = {
-		autoplay: {
-			label: "Autoplay",
-			state: false,
-			applyEffect: (state) => this.autoplayControl(state),
-		},
-		loop: {
-			label: "Loop",
-			state: true,
-			applyEffect: (state) => this.loopControl(state),
-		},
-		volumeSlider: {
-			label: "Enable volume slider",
-			state: true,
-			applyEffect: (state) => this.volumeSliderControl(state),
-		},
-		openLink: {
-			label: "Prevent link open on click",
-			state: true,
-			applyEffect: (state) => this.openLinkControl(state),
-		},
-		savePrefs: {
-			label: "Save prefs",
-			state: true,
-			applyEffect: (state) => this.savePrefsControl(state),
-		},
-		syncPrefs: {
-			label: "Sync prefs",
-			state: true,
-			applyEffect: (state) => this.syncPrefsControl(state),
-		},
-		pauseVideo: {
-			label: "Pause video when not visible",
-			state: true,
-			applyEffect: (state) => this.pauseVideoControl(state),
-		},
-		videoControls: {
-			label: "Video controls",
-			state: true,
-			applyEffect: (state) => this.videoControl(state),
-		},
-		downloadButton: {
-			label: "Download button",
-			state: true,
-			applyEffect: (state) => this.downloadButtonControl(state),
-		},
-		hideBloat: {
-			label: "Remove bloat",
-			state: false,
-			applyEffect: (state) => this.hideBloatControl(state),
-		},
-	};
-
-	async init() {
-		// this.blacklist = await GM.getValue("blacklist", []);
-		// log("Blacklist loaded:", this.blacklist);
-
-		if (domain !== "www.redgifs.com") {
-			// log("Running in:", unsafeWindow.location.href);
-
-			// await this.loadCommandsExternal();
-			// log("Commands external initialized");
-
-			// this.sendParentDomain();
-			// log("Ready to send parent domain");
-
-			this.downloadOnTop();
-			// log("Ready to download on top window");
-
-			return;
-		}
-
-		if (!path.startsWith("/ifr/")) {
-			return;
-		}
-
-		// console.group(unsafeWindow.location.href);
-		try {
-			if (isIframe) {
-				// log("Running in iframe, ready to receive parent domain");
-				// await this.receiveParentDomain();
-			}
-
-			// if (this.blacklist.includes(parentDomain)) {
-			//     // log("Aborted [RET], domain in blacklist.");
-			//     return;
-			// }
-
-			this.patchJSONParse();
-			// log("Patched JSON.parse");
-
-			this.video = await this.getVideo();
-			// log("Video initialized:", this.video);
-
-			await tweaks.loadCommandsEmbed();
-			// log("Commands embed initialized:", this.commands);
-		} catch (err) {
-			error("Error on init video:", err);
-		}
-		// console.groupEnd();
-	}
-
-	getVideo() {
-		return new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				observer.disconnect();
-				reject("Not possible get video after 10 seconds.");
-			}, 10000);
-
-			const mutationsHandler = () => {
-				const video = document.querySelector("video[src]:not([src=''])");
-
-				if (video) {
-					clearTimeout(timeout);
-					observer.disconnect();
-					resolve(video);
-				}
-			};
-
-			const observer = new MutationObserver(mutationsHandler);
-
-			observer.observe(document.body || document.documentElement || document, {
-				childList: true,
-				subtree: true,
-				attributes: true,
-				attributeFilter: ["src"],
-			});
-		});
-	}
-
-	async loadCommandsEmbed() {
-		for (const key in this.commands) {
-			const value = await GM.getValue(key);
-			if (value !== undefined) {
-				this.commands[key].state = value;
-			}
-
-			const command = this.commands[key];
-			const label = command.label;
-			const state = command.state;
-
-			if (command.applyEffect) {
-				command.applyEffect(state);
-				log("Applied effect:", key);
-			} else {
-				log("No effect:", key);
-			}
-
-			GM.registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, () =>
-				this.onClickCommandEmbed(key, state),
-			);
-		}
-	}
-
-	async loadCommandsExternal() {
-		const blacklistMap = new Set(this.blacklist);
-		const isBlacklisted = blacklistMap.has(domain);
-
-		GM.registerMenuCommand(
-			`${isBlacklisted ? "Enable" : "Disable"} for this site`,
-			() => this.onClickCommandExternal(isBlacklisted, blacklistMap),
-		);
-	}
-
-	async onClickCommandEmbed(key, state) {
-		await GM.setValue(key, !state);
-		unsafeWindow.location.reload();
-	}
-
-	async onClickCommandExternal(isBlacklisted, blacklistMap) {
-		if (isBlacklisted) {
-			blacklistMap.delete(domain);
-		} else {
-			blacklistMap.add(domain);
-		}
-
-		await GM.setValue("blacklist", [...blacklistMap]);
-		unsafeWindow.location.reload();
-	}
-
-	sendParentDomain() {
-		let sourceParent;
-
-		const handleDomainRequest = (event) => {
-			if (isIframe) {
-				unsafeWindow.parent.postMessage({ request: "domain" }, "*");
-				sourceParent = event.source;
-			} else {
-				event.source.postMessage({ redgifsParentDomain: domain }, "*");
-			}
-		};
-
-		const handleParentDomainMessage = (event) => {
-			sourceParent.postMessage(
-				{ redgifsParentDomain: event.data.redgifsParentDomain },
-				"*",
-			);
-		};
-
-		const messageFunc = (event) => {
-			if (event.data.request === "domain") {
-				handleDomainRequest(event);
-			} else if (event.data.redgifsParentDomain && sourceParent) {
-				handleParentDomainMessage(event);
-			}
-		};
-
-		unsafeWindow.addEventListener("message", messageFunc);
-	}
-
-	async receiveParentDomain() {
-		return new Promise((resolve) => {
-			const messageFunc = (e) => {
-				if (!e.data.redgifsParentDomain) return;
-
-				parentDomain = e.data.redgifsParentDomain;
-				log("Received parent domain:", parentDomain);
-				resolve();
-			};
-
-			unsafeWindow.addEventListener("message", messageFunc);
-			unsafeWindow.parent.postMessage({ request: "domain" }, "*");
-		});
-	}
-
-	detectButtonsClick() {
-		const buttons = document.querySelector(".buttons");
-
-		if (!buttons) {
-			throw new Error("Can't detect buttons clicks");
-		}
-
-		buttons.onclick = (ev) => {
-			const button = ev.target.closest("div.button");
-
-			if (!button?.matches) return;
-
-			switch (true) {
-				case button.matches(":has(.soundOff)"):
-					GM.setValue("enableSound", true);
-					break;
-				case button.matches(":has(.soundOn)"):
-					GM.setValue("enableSound", false);
-					break;
-				case button.matches(":has(.gifQuality [d^='M1 12C1'])"):
-					GM.setValue("enableHD", true);
-					break;
-				case button.matches(":has(.gifQuality [d^='M1.16712'])"):
-					GM.setValue("enableHD", false);
-					break;
-			}
-		};
-	}
-
-	autoplayControl(state) {
-		if (state) this.video.oncanplay = () => this.video.play();
-		this.video.autoplay = state;
-	}
-
-	loopControl(state) {
-		this.video.loop = state;
-	}
-
-	async volumeSliderControl(state) {
-		if (!state) return;
-
-		const volumeContainer = document.querySelector(
-			".buttons:has(> div > .soundOff,> div > .soundOn)",
-		);
-		if (!volumeContainer) return;
-
-		const inputRange = document.createElement("input");
-		this.volumeSliderControl.inputRange = inputRange;
-		inputRange.type = "range";
-		inputRange.min = 0;
-		inputRange.max = 1;
-		inputRange.step = 0.01;
-		inputRange.value = await GM.getValue("volume");
-
-		inputRange.oninput = (e) => {
-			const volume = e.target.value;
-			this.video.volume = volume;
-
-			this.updateVolumeUI();
-		};
-		inputRange.onmouseup = (e) => e.stopImmediatePropagation();
-
-		volumeContainer.appendChild(inputRange);
-	}
-
-	openLinkControl(state) {
-		if (!state) return;
-
-		this.video.parentElement.onclick = (ev) => ev.preventDefault();
-	}
-
-	async savePrefsControl(state) {
-		if (!state) return;
-
-		GM.getValue("enableSound").then((value) => {
-			if (!value) return;
-
-			click(document.querySelector(".soundOff"));
-		});
-
-		GM.getValue("enableHD").then((value) => {
-			if (!value) return;
-
-			click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
-		});
-
-		GM.getValue("volume").then((value) => {
-			if (!value) return;
-
-			this.video.volume = Math.min(1, value);
-		});
-
-		this.detectButtonsClick();
-		log("Detect buttons clicks initialized");
-	}
-
-	syncPrefsControl(state) {
-		if (!state) return;
-
-		GM.addValueChangeListener("enableSound", (_name, _oldValue, newValue) => {
-			if (newValue) {
-				click(document.querySelector(".soundOff"));
-				return;
-			}
-
-			click(document.querySelector(".soundOn"));
-		});
-
-		GM.addValueChangeListener("enableHD", (_name, _oldValue, newValue) => {
-			if (newValue) {
-				click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
-				return;
-			}
-
-			click(document.querySelector(".gifQuality:has([d^='M1.16712'])"));
-		});
-
-		GM.addValueChangeListener("volume", (_name, _oldValue, newValue) => {
-			if (!newValue) return;
-
-			this.video.volume = Math.min(1, newValue);
-			this.updateVolumeUI();
-		});
-	}
-
-	pauseVideoControl(state) {
-		if (!state) return;
-
-		const handleIntersection = ([entry]) => {
-			if (!entry.isIntersecting) {
-				this.video.pause();
-			}
-		};
-		const observer = new IntersectionObserver(handleIntersection, {
-			threshold: 0.8,
-		});
-
-		observer.observe(this.video);
-	}
-
-	videoControl(state) {
-		if (!state) return;
-
-		const keyActionHandler = (ev) => {
-			const key = ev.code;
-			const timeStep = ev.shiftKey ? 10 : 5;
-			const volumeStep = ev.shiftKey ? 0.1 : 0.05;
-			const playbackStep = 0.1;
-
-			switch (key) {
-				case "KeyF":
-					document.fullscreenElement
-						? document.exitFullscreen()
-						: document.documentElement.requestFullscreen();
-					break;
-				case "KeyM":
-					this.video.muted = !this.video.muted;
-					break;
-				case "Space":
-					this.video.paused ? this.video.play() : this.video.pause();
-					break;
-				case "ArrowLeft":
-					this.video.currentTime -= timeStep;
-					break;
-				case "ArrowRight":
-					this.video.currentTime += timeStep;
-					break;
-				case "ArrowUp":
-					this.video.volume = Math.min(1, this.video.volume + volumeStep);
-					this.updateVolumeUI();
-					break;
-				case "ArrowDown":
-					this.video.volume = Math.max(0, this.video.volume - volumeStep);
-					this.updateVolumeUI();
-					break;
-				case "Minus":
-					this.video.playbackRate -= playbackStep;
-					break;
-				case "Equal":
-					this.video.playbackRate += playbackStep;
-					break;
-				case "Backspace":
-					this.video.playbackRate = 1;
-					break;
-				case "Home":
-					this.video.currentTime = 0;
-					break;
-				case "End":
-					this.video.currentTime = this.video.duration;
-					break;
-			}
-		};
-
-		window.addEventListener("keydown", keyActionHandler);
-	}
-
-	downloadButtonControl(state) {
-		if (!state) return;
-
-		GM.addStyle("#downloadOpen { display: block }");
-	}
-
-	hideBloatControl(state) {
-		if (!state) return;
-
-		GM.addStyle(".userInfo, .logo, #shareButton { display: none !important; }");
-	}
-
-	async downloadAsBlob(vUrl, downloadElementEntry) {
-		if (isIframe) {
-			return unsafeWindow.parent.postMessage({ redgifsURL: vUrl }, "*");
-		}
-
-		try {
-			const res = await GM.xmlHttpRequest({
-				url: vUrl,
-				responseType: "blob",
-				onprogress: (ev) => {
-					// TODO: Adicionar um método para comunicação entre window/parent
-					if (!downloadElementEntry) return;
-
-					const loaded = (ev.loaded / ev.total) * 100;
-					const progress = (loaded / 100) * downloadElementEntry.offsetWidth;
-
-					downloadElementEntry.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
-				},
-			});
-
-			const url = URL.createObjectURL(res.response);
-			const link = document.createElement("a");
-			const nameVideo = vUrl.split("/").at(-1);
-
-			link.href = url;
-			link.download = nameVideo;
-
-			document.body.appendChild(link);
-
-			link.click();
-
-			document.body.removeChild(link);
-
-			URL.revokeObjectURL(url);
-		} catch (error) {
-			error("Error downloading video:", error);
-		}
-	}
-
-	addDownloadEntries(arr) {
-		const copySvg = `
+const domain = window.location.hostname;
+const isTop = window.top === window.self;
+
+const commands = {
+    autoplay: {
+        label: "Autoplay",
+        state: false,
+        applyEffect: autoplayControl,
+    },
+    loop: {
+        label: "Loop",
+        state: true,
+        applyEffect: loopControl,
+    },
+    volumeControl: {
+        label: "Enable volume slider",
+        state: true,
+        applyEffect: volumeSliderControl,
+    },
+    openLink: {
+        label: "Prevent link open on click",
+        state: true,
+        applyEffect: openLinkControl,
+    },
+    saveSettings: {
+        label: "Save settings",
+        state: true,
+        applyEffect: savePrefsControl,
+    },
+    syncSettings: {
+        label: "Sync settings",
+        state: true,
+        applyEffect: syncPrefsControl,
+    },
+    pauseVideo: {
+        label: "Pause video when not visible",
+        state: true,
+        applyEffect: pauseVideoControl,
+    },
+    videoControls: {
+        label: "Video controls",
+        state: true,
+        applyEffect: videoControl,
+    },
+    downloadButton: {
+        label: "Download button",
+        state: true,
+        applyEffect: downloadButtonControl,
+    },
+    hideBloat: {
+        label: "Remove bloat",
+        state: false,
+        applyEffect: hideBloatControl,
+    },
+};
+
+if (isTop) {
+    loadCommands();
+}
+
+if (domain !== "www.redgifs.com") {
+    downloadOnTop();
+}
+
+if (domain === "www.redgifs.com") {
+    GM_addValueChangeListener("reload", () => window.location.reload());
+    patchJSONParse();
+    initVideo();
+}
+
+function loadCommands() {
+    for (const key in commands) {
+        const value = GM_getValue(key);
+        if (value !== undefined) {
+            commands[key].state = value;
+        }
+
+        const command = commands[key];
+        const label = command.label;
+        const state = command.state;
+
+        GM_registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, () => toggleCommand(key, state), { id: key, autoClose: false });
+    }
+}
+
+function toggleCommand(key, state) {
+    const command = commands[key];
+    const label = command.label;
+    const newState = !state;
+    GM_registerMenuCommand(`${label}: ${newState ? "ON" : "OFF"}`, () => toggleCommand(key, newState), { id: key, autoClose: false });
+
+    GM_setValue(key, newState);
+    GM_setValue("reload", Math.random());
+}
+
+async function initVideo() {
+    const getVideo = async () => {
+        return new Promise((resolve) => {
+            const observer = new MutationObserver((_, observer) => {
+                const video = document.querySelector("video[src]:not([src=''])");
+                if (video) {
+                    observer.disconnect();
+                    resolve(video);
+                }
+            });
+            observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+        });
+    };
+
+    const video = await getVideo();
+    console.log("Found video:", video);
+    for (const key in commands) {
+        const state = GM_getValue(key, commands[key].state);
+
+        commands[key].applyEffect(video, state);
+    }
+}
+
+const click = (element, eventObj = { bubbles: true, cancelable: true }) => element?.dispatchEvent(new MouseEvent("click", eventObj));
+
+function updateVolumeUI(video, volume) {
+    GM_setValue("volume", volume);
+    video.volume = volume;
+    video.inputElement.value = volume;
+
+    if (volume > 0) {
+        click(document.querySelector(".soundOff"));
+    } else {
+        click(document.querySelector(".soundOn"));
+    }
+}
+
+function autoplayControl(video, state) {
+    if (state) video.oncanplay = () => video.play();
+    video.autoplay = state;
+}
+
+function loopControl(video, state) {
+    video.loop = state;
+}
+
+async function volumeSliderControl(video, state) {
+    if (!state) return;
+
+    const volumeContainer = document.querySelector(".buttons:has(> div > .soundOff,> div > .soundOn)");
+    if (!volumeContainer) return;
+
+    const inputElement = document.createElement("input");
+    video.inputElement = inputElement;
+    inputElement.type = "range";
+    inputElement.min = 0;
+    inputElement.max = 1;
+    inputElement.step = 0.01;
+    inputElement.value = GM_getValue("volume", 0);
+
+    inputElement.oninput = (e) => {
+        const volume = e.target.value;
+        updateVolumeUI(video, volume);
+    };
+    inputElement.onmouseup = (e) => e.stopImmediatePropagation();
+
+    volumeContainer.appendChild(inputElement);
+}
+
+function openLinkControl(video, state) {
+    if (!state) return;
+
+    const target = video.closest("a[href]");
+    target.onclick = (ev) => ev.preventDefault();
+}
+
+async function savePrefsControl(video, state) {
+    if (!state) return;
+
+    const enableSoundValue = GM_getValue("enableSound");
+    if (enableSoundValue) {
+        click(document.querySelector(".soundOff"));
+    }
+
+    const enableHDValue = GM_getValue("enableHD");
+    if (enableHDValue) {
+        click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+    }
+
+    const volumeValue = GM_getValue("volume", 1);
+    video.volume = Math.min(1, volumeValue);
+
+    detectButtonsClick();
+}
+
+function detectButtonsClick() {
+    const buttons = document.querySelector(".buttons");
+
+    buttons.onclick = (ev) => {
+        const button = ev.target.closest("div.button");
+        if (!button) return;
+
+        if (button.matches(":has(.soundOff)")) {
+            GM_setValue("enableSound", true);
+            return;
+        }
+        if (button.matches(":has(.soundOn)")) {
+            GM_setValue("enableSound", false);
+            return;
+        }
+        if (button.matches(":has(.gifQuality [d^='M1 12C1'])")) {
+            GM_setValue("enableHD", true);
+            return;
+        }
+        if (button.matches(":has(.gifQuality [d^='M1.16712'])")) {
+            GM_setValue("enableHD", false);
+            return;
+        }
+    };
+}
+
+function syncPrefsControl(video, state) {
+    if (!state) return;
+
+    GM_addValueChangeListener("enableSound", (_name, _oldValue, newValue) => {
+        if (newValue) {
+            click(document.querySelector(".soundOff"));
+            return;
+        }
+
+        click(document.querySelector(".soundOn"));
+    });
+
+    GM_addValueChangeListener("enableHD", (_name, _oldValue, newValue) => {
+        if (newValue) {
+            click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+            return;
+        }
+
+        click(document.querySelector(".gifQuality:has([d^='M1.16712'])"));
+    });
+
+    GM_addValueChangeListener("volume", (_name, _oldValue, volume) => {
+        if (!volume) return;
+
+        updateVolumeUI(video, volume);
+    });
+}
+
+function pauseVideoControl(video, state) {
+    if (!state) return;
+
+    const handleIntersection = ([entry]) => {
+        if (!entry.isIntersecting) {
+            video.pause();
+        }
+    };
+    const observer = new IntersectionObserver(handleIntersection, {
+        threshold: 0.8,
+    });
+
+    observer.observe(video);
+}
+
+function videoControl(video, state) {
+    if (!state) return;
+
+    const keyActionHandler = (event) => {
+        const key = event.code;
+        const timeStep = event.shiftKey ? 10 : 5;
+        const volumeStep = event.shiftKey ? 0.1 : 0.05;
+        const playbackStep = 0.1;
+
+        switch (key) {
+            case "KeyF":
+                document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+                break;
+            case "KeyM":
+                video.muted = !video.muted;
+                break;
+            case "Space":
+                video.paused ? video.play() : video.pause();
+                break;
+            case "ArrowLeft":
+                video.currentTime -= timeStep;
+                break;
+            case "ArrowRight":
+                video.currentTime += timeStep;
+                break;
+            case "ArrowUp":
+                updateVolumeUI(video, Math.min(1, video.volume + volumeStep));
+                break;
+            case "ArrowDown":
+                updateVolumeUI(video, Math.max(0, video.volume - volumeStep));
+                break;
+            case "Minus":
+                video.playbackRate -= playbackStep;
+                break;
+            case "Equal":
+                video.playbackRate += playbackStep;
+                break;
+            case "Backspace":
+                video.playbackRate = 1;
+                break;
+            case "Home":
+                video.currentTime = 0;
+                break;
+            case "End":
+                video.currentTime = video.duration;
+                break;
+        }
+    };
+
+    window.addEventListener("keydown", keyActionHandler);
+}
+
+function downloadButtonControl(_video, state) {
+    if (!state) return;
+
+    GM_addStyle("#downloadOpen { display: block }");
+}
+
+function hideBloatControl(_video, state) {
+    if (!state) return;
+
+    GM_addStyle(".userInfo, .logo, #shareButton { display: none !important; }");
+}
+
+async function downloadAsBlob(vUrl, downloadElementEntry) {
+    if (!isTop) {
+        return unsafeWindow.parent.postMessage({ redgifsURL: vUrl }, "*");
+    }
+
+    try {
+        GM_xmlhttpRequest({
+            url: vUrl,
+            responseType: "blob",
+            onprogress(event) {
+                if (!downloadElementEntry) {
+                    return;
+                }
+
+                const loaded = (event.loaded / event.total) * 100;
+                const progress = (loaded / 100) * downloadElementEntry.offsetWidth;
+
+                downloadElementEntry.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
+            },
+            onload(event) {
+                const url = URL.createObjectURL(event.response);
+                const link = document.createElement("a");
+                const nameVideo = vUrl.split("/").at(-1);
+
+                link.href = url;
+                link.download = nameVideo;
+
+                document.body.appendChild(link);
+
+                link.click();
+
+                document.body.removeChild(link);
+
+                URL.revokeObjectURL(url);
+            },
+        });
+    } catch (error) {
+        console.error("Error downloading video:", error);
+    }
+}
+
+function addDownloadEntries(arr) {
+    const copySvg = `
         <i class="copy-button">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
                 <path d="M20.9983 10C20.9862 7.82497 20.8897 6.64706 20.1213 5.87868C19.2426 5 17.8284 5 15 5H12C9.17157 5 7.75736 5 6.87868 5.87868C6 6.75736 6 8.17157 6 11V16C6 18.8284 6 20.2426 6.87868 21.1213C7.75736 22 9.17157 22 12 22H15C17.8284 22 19.2426 22 20.1213 21.1213C21 20.2426 21 18.8284 21 16V15" stroke-width="1.5" stroke-linecap="round" stroke="#fff"/>
@@ -518,16 +390,11 @@ class RedgifsTweaks {
             </svg>
         </i>
         `;
-		const downloadButton = document.createElement("div");
-		const downloadEntry = arr
-			.map(
-				(e) =>
-					`<div class="download-entry" data-url="${e[1]}"><span class="download-dw">${e[0]}</span>${copySvg}</div>`,
-			)
-			.join("\n");
-		downloadButton.id = "downloadOpen";
+    const downloadButton = document.createElement("div");
+    const downloadEntry = arr.map((e) => `<div class="download-entry" data-url="${e[1]}"><span class="download-dw">${e[0]}</span>${copySvg}</div>`).join("\n");
+    downloadButton.id = "downloadOpen";
 
-		downloadButton.innerHTML = `
+    downloadButton.innerHTML = `
         <svg class="download-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
             <path d="M12.5535 16.5061C12.4114 16.6615 12.2106 16.75 12 16.75C11.7894 16.75 11.5886 16.6615 11.4465 16.5061L7.44648 12.1311C7.16698 11.8254 7.18822 11.351 7.49392 11.0715C7.79963 10.792 8.27402 10.8132 8.55352 11.1189L11.25 14.0682V3C11.25 2.58579 11.5858 2.25 12 2.25C12.4142 2.25 12.75 2.58579 12.75 3V14.0682L15.4465 11.1189C15.726 10.8132 16.2004 10.792 16.5061 11.0715C16.8118 11.351 16.833 11.8254 16.5535 12.1311L12.5535 16.5061Z" fill="#fff"/>
             <path d="M3.75 15C3.75 14.5858 3.41422 14.25 3 14.25C2.58579 14.25 2.25 14.5858 2.25 15V15.0549C2.24998 16.4225 2.24996 17.5248 2.36652 18.3918C2.48754 19.2919 2.74643 20.0497 3.34835 20.6516C3.95027 21.2536 4.70814 21.5125 5.60825 21.6335C6.47522 21.75 7.57754 21.75 8.94513 21.75H15.0549C16.4225 21.75 17.5248 21.75 18.3918 21.6335C19.2919 21.5125 20.0497 21.2536 20.6517 20.6516C21.2536 20.0497 21.5125 19.2919 21.6335 18.3918C21.75 17.5248 21.75 16.4225 21.75 15.0549V15C21.75 14.5858 21.4142 14.25 21 14.25C20.5858 14.25 20.25 14.5858 20.25 15C20.25 16.4354 20.2484 17.4365 20.1469 18.1919C20.0482 18.9257 19.8678 19.3142 19.591 19.591C19.3142 19.8678 18.9257 20.0482 18.1919 20.1469C17.4365 20.2484 16.4354 20.25 15 20.25H9C7.56459 20.25 6.56347 20.2484 5.80812 20.1469C5.07435 20.0482 4.68577 19.8678 4.40901 19.591C4.13225 19.3142 3.9518 18.9257 3.85315 18.1919C3.75159 17.4365 3.75 16.4354 3.75 15Z" fill="#fff"/>
@@ -537,73 +404,54 @@ class RedgifsTweaks {
         </div>
         `;
 
-		downloadButton.addEventListener("click", (e) => {
-			const downloadOpen = e.target.closest(".download-svg");
-			if (downloadOpen) {
-				return downloadButton.lastElementChild.classList.toggle("ret-hidden");
-			}
+    downloadButton.addEventListener("click", (e) => {
+        const downloadOpen = e.target.closest(".download-svg");
+        if (downloadOpen) {
+            return downloadButton.lastElementChild.classList.toggle("ret-hidden");
+        }
 
-			const download = e.target.closest(".download-dw");
-			if (download) {
-				const url = download.parentElement.dataset.url;
-				return this.downloadAsBlob(url, download);
-			}
+        const download = e.target.closest(".download-dw");
+        if (download) {
+            const url = download.parentElement.dataset.url;
+            return downloadAsBlob(url, download);
+        }
 
-			const copy = e.target.closest(".copy-button");
-			if (copy) {
-				return navigator.clipboard.writeText(copy.parentElement.dataset.url);
-			}
-		});
+        const copy = e.target.closest(".copy-button");
+        if (copy) {
+            return navigator.clipboard.writeText(copy.parentElement.dataset.url);
+        }
+    });
 
-		document.body.appendChild(downloadButton);
-	}
-
-	downloadOnTop() {
-		const messageFunc = (e) => {
-			if (!e.data?.redgifsURL) return;
-
-			log("Downloading: ", e.data.redgifsURL);
-			this.downloadAsBlob(e.data.redgifsURL);
-		};
-
-		unsafeWindow.addEventListener("message", messageFunc);
-	}
-
-	updateVolumeUI() {
-		this.volumeSliderControl.inputRange.value = this.video.volume;
-		GM.setValue("volume", this.video.volume);
-
-		if (this.video.volume > 0) {
-			click(document.querySelector(".soundOff"));
-		} else {
-			click(document.querySelector(".soundOn"));
-		}
-	}
-
-	patchJSONParse() {
-		const originalJParse = JSON.parse;
-
-		JSON.parse = (text, reviver) => {
-			const result = originalJParse.call(JSON, text, reviver);
-			if (result.gif) {
-				const urls = Object.entries(result.gif.urls);
-				const ext = urls
-					.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u])
-					.sort();
-
-				log("Creating download entries for: ", location.href);
-				tweaks.addDownloadEntries(ext);
-			}
-
-			return result;
-		};
-	}
+    document.body.appendChild(downloadButton);
 }
 
-const tweaks = new RedgifsTweaks();
-tweaks.init();
+function downloadOnTop() {
+    const messageFunc = (e) => {
+        if (!e.data?.redgifsURL) return;
 
-GM.addStyle(`
+        downloadAsBlob(e.data.redgifsURL);
+    };
+
+    unsafeWindow.addEventListener("message", messageFunc);
+}
+
+function patchJSONParse() {
+    const originalJParse = JSON.parse;
+
+    JSON.parse = (text, reviver) => {
+        const result = originalJParse.call(JSON, text, reviver);
+        if (result.gif) {
+            const urls = Object.entries(result.gif.urls);
+            const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
+
+            addDownloadEntries(ext);
+        }
+
+        return result;
+    };
+}
+
+GM_addStyle(`
 #root > .App .embeddedPlayer .buttons > input {
     display: none;
     position: absolute;
