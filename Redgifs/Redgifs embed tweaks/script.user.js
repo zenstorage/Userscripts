@@ -10,7 +10,7 @@
 // @grant           GM_addValueChangeListener
 // @grant           GM_addStyle
 // @grant           GM_xmlhttpRequest
-// @version         0.5.0
+// @version         0.5.1
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -44,17 +44,22 @@ const commands = {
     saveSettings: {
         label: "Save settings",
         state: true,
-        applyEffect: savePrefsControl,
+        applyEffect: saveSettingsControl,
     },
     syncSettings: {
         label: "Sync settings",
         state: true,
-        applyEffect: syncPrefsControl,
+        applyEffect: syncSettingsControl,
     },
     pauseVideo: {
         label: "Pause video when not visible",
         state: true,
         applyEffect: pauseVideoControl,
+    },
+    playOneAtTime: {
+        label: "Play one video at a time",
+        state: true,
+        applyEffect: playOneAtTimeControl,
     },
     videoControls: {
         label: "Video controls",
@@ -127,7 +132,6 @@ async function initVideo() {
     };
 
     const video = await getVideo();
-    console.log("Found video:", video);
     for (const key in commands) {
         const state = GM_getValue(key, commands[key].state);
 
@@ -188,7 +192,7 @@ function openLinkControl(video, state) {
     target.onclick = (ev) => ev.preventDefault();
 }
 
-async function savePrefsControl(video, state) {
+async function saveSettingsControl(video, state) {
     if (!state) return;
 
     const enableSoundValue = GM_getValue("enableSound");
@@ -233,7 +237,7 @@ function detectButtonsClick() {
     };
 }
 
-function syncPrefsControl(video, state) {
+function syncSettingsControl(video, state) {
     if (!state) return;
 
     GM_addValueChangeListener("enableSound", (_name, _oldValue, newValue) => {
@@ -270,10 +274,22 @@ function pauseVideoControl(video, state) {
         }
     };
     const observer = new IntersectionObserver(handleIntersection, {
-        threshold: 0.8,
+        threshold: 0.6,
     });
 
     observer.observe(video);
+}
+
+function playOneAtTimeControl(video, state) {
+    if (!state) return;
+
+    const gifID = unsafeWindow.location.pathname.split("/").at(-1);
+
+    video.addEventListener("play", () => GM_setValue("playing", gifID));
+    GM_addValueChangeListener("playing", (_name, _oldValue, newValue) => {
+        if (newValue === gifID) return;
+        video.pause();
+    });
 }
 
 function videoControl(video, state) {
