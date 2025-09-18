@@ -10,7 +10,7 @@
 // @grant           GM_addValueChangeListener
 // @grant           GM_addStyle
 // @grant           GM_xmlhttpRequest
-// @version         0.5.1
+// @version         0.5.2
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -18,7 +18,7 @@
 // ==/UserScript==
 
 const domain = window.location.hostname;
-const isTop = window.top === window.self;
+const isRootWindow = window.top === window.self;
 
 const commands = {
     autoplay: {
@@ -31,15 +31,15 @@ const commands = {
         state: true,
         applyEffect: loopControl,
     },
-    volumeControl: {
+    volumeSlider: {
         label: "Enable volume slider",
         state: true,
         applyEffect: volumeSliderControl,
     },
-    openLink: {
-        label: "Prevent link open on click",
+    preventLink: {
+        label: "Prevent link opening",
         state: true,
-        applyEffect: openLinkControl,
+        applyEffect: preventLinkControl,
     },
     saveSettings: {
         label: "Save settings",
@@ -51,35 +51,49 @@ const commands = {
         state: true,
         applyEffect: syncSettingsControl,
     },
-    pauseVideo: {
+    pauseWhenHidden: {
         label: "Pause video when not visible",
         state: true,
-        applyEffect: pauseVideoControl,
+        applyEffect: pauseWhenHiddenControl,
     },
-    playOneAtTime: {
-        label: "Play one video at a time",
+    oneAtTime: {
+        label: "Play one at a time",
         state: true,
-        applyEffect: playOneAtTimeControl,
+        applyEffect: oneAtTimeControl,
     },
-    videoControls: {
+    keyboardShortcuts: {
         label: "Video controls",
         state: true,
-        applyEffect: videoControl,
+        applyEffect: keyboardShortcutsControl,
     },
-    downloadButton: {
-        label: "Download button",
+    showDownload: {
+        label: "Show download button",
         state: true,
-        applyEffect: downloadButtonControl,
+        applyEffect: showDownloadControl,
     },
-    hideBloat: {
-        label: "Remove bloat",
+    pruneUI: {
+        label: "Prune UI",
         state: false,
-        applyEffect: hideBloatControl,
+        applyEffect: pruneUIControl,
+    },
+    detectVideoPatching: {
+        label: "Detect video patching native method",
+        state: false,
+        applyEffect: () => {},
+    },
+    reloadOnDemand: {
+        label: "Reload iframes on demand",
+        state: false,
+        applyEffect: reloadOnDemandControl,
     },
 };
 
-if (isTop) {
+if (isRootWindow) {
     loadCommands();
+
+    GM_addValueChangeListener("reloadOnDemand", () => {
+        window.location.reload();
+    });
 }
 
 if (domain !== "www.redgifs.com") {
@@ -87,23 +101,19 @@ if (domain !== "www.redgifs.com") {
 }
 
 if (domain === "www.redgifs.com") {
-    GM_addValueChangeListener("reload", () => window.location.reload());
     patchJSONParse();
     initVideo();
 }
 
 function loadCommands() {
     for (const key in commands) {
-        const value = GM_getValue(key);
-        if (value !== undefined) {
-            commands[key].state = value;
-        }
+        commands[key].state = GM_getValue(key, commands[key].state);
 
         const command = commands[key];
         const label = command.label;
         const state = command.state;
 
-        GM_registerMenuCommand(`${label}: ${state ? "ON" : "OFF"}`, () => toggleCommand(key, state), { id: key, autoClose: false });
+        GM_registerMenuCommand(`${state ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, state), { id: key, autoClose: false });
     }
 }
 
@@ -111,31 +121,50 @@ function toggleCommand(key, state) {
     const command = commands[key];
     const label = command.label;
     const newState = !state;
-    GM_registerMenuCommand(`${label}: ${newState ? "ON" : "OFF"}`, () => toggleCommand(key, newState), { id: key, autoClose: false });
+    GM_registerMenuCommand(`${newState ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, newState), { id: key, autoClose: false });
 
     GM_setValue(key, newState);
     GM_setValue("reload", Math.random());
 }
 
 async function initVideo() {
-    const getVideo = async () => {
-        return new Promise((resolve) => {
-            const observer = new MutationObserver((_, observer) => {
-                const video = document.querySelector("video[src]:not([src=''])");
-                if (video) {
-                    observer.disconnect();
-                    resolve(video);
-                }
-            });
-            observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-        });
+    const applyCommands = (video) => {
+        for (const key in commands) {
+            const state = GM_getValue(key, commands[key].state);
+
+            commands[key].applyEffect(video, state);
+        }
     };
 
-    const video = await getVideo();
-    for (const key in commands) {
-        const state = GM_getValue(key, commands[key].state);
+    if (commands.detectVideoPatching.state === true) {
+        const originalCreateElement = Document.prototype.createElement;
 
-        commands[key].applyEffect(video, state);
+        Document.prototype.createElement = new Proxy(originalCreateElement, {
+            apply(target, thisArg, argsList) {
+                const result = Reflect.apply(target, thisArg, argsList);
+
+                if (argsList[0] === "video") {
+                    result.addEventListener("canplay", () => applyCommands(result));
+                }
+
+                return result;
+            },
+        });
+    } else {
+        const getVideo = async () => {
+            return new Promise((resolve) => {
+                const observer = new MutationObserver((_, observer) => {
+                    const video = document.querySelector("video[src]:not([src=''])");
+                    if (video) {
+                        observer.disconnect();
+                        resolve(video);
+                    }
+                });
+                observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+            });
+        };
+        const video = await getVideo();
+        applyCommands(video);
     }
 }
 
@@ -185,7 +214,7 @@ async function volumeSliderControl(video, state) {
     volumeContainer.appendChild(inputElement);
 }
 
-function openLinkControl(video, state) {
+function preventLinkControl(video, state) {
     if (!state) return;
 
     const target = video.closest("a[href]");
@@ -265,7 +294,7 @@ function syncSettingsControl(video, state) {
     });
 }
 
-function pauseVideoControl(video, state) {
+function pauseWhenHiddenControl(video, state) {
     if (!state) return;
 
     const handleIntersection = ([entry]) => {
@@ -280,7 +309,7 @@ function pauseVideoControl(video, state) {
     observer.observe(video);
 }
 
-function playOneAtTimeControl(video, state) {
+function oneAtTimeControl(video, state) {
     if (!state) return;
 
     const gifID = unsafeWindow.location.pathname.split("/").at(-1);
@@ -292,7 +321,7 @@ function playOneAtTimeControl(video, state) {
     });
 }
 
-function videoControl(video, state) {
+function keyboardShortcutsControl(video, state) {
     if (!state) return;
 
     const keyActionHandler = (event) => {
@@ -344,20 +373,52 @@ function videoControl(video, state) {
     window.addEventListener("keydown", keyActionHandler);
 }
 
-function downloadButtonControl(_video, state) {
+function showDownloadControl(_video, state) {
     if (!state) return;
 
     GM_addStyle("#downloadOpen { display: block }");
 }
 
-function hideBloatControl(_video, state) {
+function pruneUIControl(_video, state) {
     if (!state) return;
 
     GM_addStyle(".userInfo, .logo, #shareButton { display: none !important; }");
 }
 
+function reloadOnDemandControl(_video, state) {
+    let isIntersecting = false;
+    let shouldReload = false;
+
+    if (state) {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                isIntersecting = entry.isIntersecting;
+
+                if (isIntersecting && shouldReload) {
+                    window.location.reload();
+                }
+            },
+            { rootMargin: "100px" },
+        );
+        observer.observe(document.documentElement);
+    }
+
+    GM_addValueChangeListener("reload", () => {
+        if (!state) {
+            window.location.reload();
+            return;
+        }
+
+        if (isIntersecting) {
+            window.location.reload();
+        } else {
+            shouldReload = true;
+        }
+    });
+}
+
 async function downloadAsBlob(vUrl, downloadElementEntry) {
-    if (!isTop) {
+    if (!isRootWindow) {
         return unsafeWindow.parent.postMessage({ redgifsURL: vUrl }, "*");
     }
 
