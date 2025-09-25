@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name          USToolkit
 // @namespace     https://greasyfork.org/pt-BR/users/821661
-// @version       0.0.6
+// @version       0.0.7
 // @run-at        document-start
 // @match         https://*/*
 // @author        hdyzen
-// @description   simple toolkit to help me create userscripts
+// @description   simple toolkit to create userscripts (alpha)
 // @license       MIT
 // ==/UserScript==
 
@@ -46,12 +46,14 @@
         #originalAttachShadow = unsafeWindow.Element.prototype.attachShadow;
         #isObserving = false;
         #activeObservers = new Set();
+        #observerOptions = { childList: true, subtree: true, attributes: true };
         #deep;
         #root;
 
-        constructor({ root = document, deep = false }) {
+        constructor({ root = document, deep = false, observeOptions } = {}) {
             this.#root = root;
             this.#deep = deep;
+            this.#observerOptions = observeOptions || this.#observerOptions;
         }
 
         add(selector, callback) {
@@ -118,7 +120,9 @@
         stop() {
             if (!this.#isObserving) return;
 
-            this.#activeObservers.forEach((observer) => observer.disconnect());
+            this.#activeObservers.forEach((observer) => {
+                observer.disconnect();
+            });
             this.#activeObservers.clear();
 
             unsafeWindow.Element.prototype.attachShadow = this.#originalAttachShadow;
@@ -157,14 +161,16 @@
                         }
 
                         if (this.#combinedSelector) {
-                            node.querySelectorAll(this.#combinedSelector).forEach((el) => processElement(el));
+                            node.querySelectorAll(this.#combinedSelector).forEach((el) => {
+                                processElement(el);
+                            });
                         }
                     }
                 }
                 processedInBatch.clear();
             });
 
-            observer.observe(root, { childList: true, subtree: true, attributes: true });
+            observer.observe(root, this.#observerOptions);
 
             this.#activeObservers.add(observer);
             this.#observedRoots.add(root);
@@ -214,15 +220,58 @@
         }
     }
 
+    /**
+     * Registers a callback to be executed when an element matching a selector is added to the DOM.
+     * @param {string} selector The CSS selector of the element to watch for.
+     * @param {function(Element): void} callback The callback to execute with the found element.
+     * @returns {OnElements} The OnElements instance.
+     */
     function onElement(selector, callback) {
-        if (this.observer === undefined) {
-            this.observer = new OnElements({ deep: true });
-        }
-        this.observer.add(selector, callback).start();
-
-        return this.observer;
+        const observer = new OnElements({ deep: true });
+        observer.add(selector, callback).start();
+        return observer;
     }
 
+    /**
+     * Returns a generator that iterates over all text nodes in a scope,
+     * including those inside Shadow DOMs.
+     * @param {Node} [scope=document.body] The root node from which to start the search.
+     * @returns {Generator<Text>} A generator that yields text nodes.
+     */
+    function* getTextNodes(scope = document.body) {
+        if (!scope) return;
+
+        for (const element of queryAll(scope, "*")) {
+            for (const node of element.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    yield node;
+                }
+            }
+        }
+    }
+
+    /**
+     * A generator function that finds and yields all shadow roots within the given scope.
+     *
+     * This function iterates through all elements in the provided scope and checks for the existence of a shadowRoot.
+     *
+     * @param {Scope} scope The Document, DocumentFragment, or HTMLElement to search within.
+     * @yields {ShadowRoot} The found shadow root.
+     */
+    function* getShadowRoots(scope) {
+        for (const element of scope.querySelectorAll("*")) {
+            if (element.shadowRoot) {
+                yield element.shadowRoot;
+            }
+        }
+    }
+
+    /**
+     * A recursive query selector that traverses into Shadow DOMs.
+     * @param {Node} scope The root node to start the search from.
+     * @param {string} selector The CSS selector to match.
+     * @returns {Generator<Element>} A generator that yields matching elements.
+     */
     function* queryAll(scope, selector) {
         for (const element of scope.querySelectorAll("*")) {
             if (element.matches(selector)) {
@@ -235,12 +284,24 @@
         }
     }
 
+    /**
+     * Finds the first element that matches a selector, including inside Shadow DOMs.
+     * @param {Node} scope The root node to start the search from.
+     * @param {string} selector The CSS selector to match.
+     * @returns {Element|null} The first matching element, or null if not found.
+     */
     function query(scope, selector) {
         const iterator = queryAll(scope, selector);
         const result = iterator.next();
         return result.done ? null : result.value;
     }
 
+    /**
+     * Finds the closest ancestor element that matches a selector, traversing up through Shadow DOMs.
+     * @param {Element} element The starting element.
+     * @param {string} selector The CSS selector to match against ancestors.
+     * @returns {Element|null} The closest matching ancestor, or null.
+     */
     function closest(element, selector) {
         let node = element;
 
@@ -262,13 +323,25 @@
         return null;
     }
 
+    /**
+     * Injects a script into the document head for execution.
+     * @param {string} code The JavaScript code to inject.
+     */
     function injectScriptInline(code) {
         const script = document.createElement("script");
 
-        script.textContent = code;
+        if (typeof code === "string") {
+            script.textContent = code;
+        }
+
+        if (typeof code === "function") {
+            script.textContent = code.toString();
+        }
+
         (document.head || document.documentElement).appendChild(script);
         script.remove();
-        return;
+
+        return true;
     }
 
     /**
@@ -291,28 +364,96 @@
 
     /**
      * Attaches a delegated event listener to a scope.
-     * @param {string} event The name of the event (e.g., 'click').
+     * @param {string} events The name of the event (e.g., 'click').
      * @param {string} selector A CSS selector to filter the event target.
      * @param {function(Event): void} callback The event handler function.
      * @param {EventListenerOptions} options Options passed to eventListener.
      * @param {Node} [scope=document] The parent element to attach the listener to.
      */
-    function on(event, selector, callback, options, scope = document) {
+    function on(events, selector, callback, options, scope = document) {
         const handler = (event) => {
             if (closest(event.target, selector)) callback(event);
         };
-        scope.addEventListener(event, handler, options);
+        for (const event of events.split(/\s+/)) {
+            scope.addEventListener(event, handler, options);
+        }
 
-        return () => scope.removeEventListener(event, handler, options);
+        return () => {
+            for (const event of events) {
+                scope.removeEventListener(event, handler, options);
+            }
+        };
     }
 
     /**
-     * Cria um proxy recursivo que invoca um callback.
-     * O callback pode opcionalmente retornar um valor para substituir o comportamento padrão.
+     * Provides a simplified, proxied interface for accessing and modifying
+     * Greasemonkey's persistent storage. This function abstracts `GM_getValue`
+     * and `GM_setValue`, allowing for direct object and nested property access
+     * as if they were in a regular JavaScript object.
      *
-     * @param {object} target - O objeto inicial a ser observado.
-     * @param {function(object): any} callback - A função a ser chamada na interceptação.
-     * @returns {Proxy} - O objeto envolvido pelo proxy.
+     * @returns {Proxy<object>} A proxy object that automatically synchronizes
+     * a user's configuration or data with the userscript's storage.
+     */
+    function storage() {
+        const storageRoot = {};
+
+        return createDeepProxy(storageRoot, ({ action, path, prop, value }) => {
+            if (action === "set") {
+                GM_setValue(prop, value);
+                return true;
+            }
+
+            if (action === "get") {
+                const rootKey = path[0];
+                const result = GM_getValue(rootKey, {});
+
+                if (result === undefined) return undefined;
+                if (path.length === 1) return result;
+
+                return getNestedValue(result, path.slice(1));
+            }
+        });
+    }
+
+    /**
+     * Sets a value in a nested object based on an array path.
+     * @param {object} obj The object to modify.
+     * @param {string[]} path The path to the property.
+     * @param {*} value The value to set.
+     */
+    function setNestedValue(obj, path, value) {
+        let current = obj;
+        for (let i = 0; i < path.length - 1; i++) {
+            const p = path[i];
+            if (valType(current[p]) !== "object") {
+                current[p] = {};
+            }
+            current = current[p];
+        }
+        current[path[path.length - 1]] = value;
+    }
+
+    /**
+     * Gets a value from a nested object based on an array path.
+     * @param {object} obj The object to search.
+     * @param {string[]} path The path to the property.
+     * @returns {*} The value of the nested property or undefined.
+     */
+    function getNestedValue(obj, path) {
+        let current = obj;
+        for (const p of path) {
+            if (valType(current) !== "object") return undefined;
+            if (!Object.hasOwn(current, p)) return undefined;
+            current = current[p];
+        }
+        return current;
+    }
+
+    /**
+     * Creates a recursive proxy that intercepts property access (get) and modification (set).
+     * @param {object} target The initial object to be proxied.
+     * @param {function(object): any} callback The callback function to be invoked on interception.
+     * @returns {Proxy} The proxied object.
      */
     function createDeepProxy(target, callback) {
         const _createProxy = (currentTarget, currentPath) => {
@@ -340,7 +481,6 @@
 
                     return value;
                 },
-
                 set(obj, prop, newValue) {
                     const newPath = [...currentPath, prop];
 
@@ -349,7 +489,7 @@
                         path: newPath,
                         prop,
                         value: newValue,
-                        valueType: valType(value),
+                        valueType: valType(newValue),
                         target: obj,
                     });
 
@@ -365,29 +505,6 @@
         return _createProxy(target, []);
     }
 
-    function safeSet(obj, chain, value, { override } = { override: false }) {
-        if (!obj || typeof chain !== "string" || chain === "") {
-            return;
-        }
-
-        const props = chain.split(".");
-        let current = obj;
-        for (let i = 0; i < props.length; i++) {
-            const prop = props[i];
-
-            // console.log("Current:", current, "\nProp:", prop, "\nIndex:", i);
-
-            if (valType(current) !== "object" || !Object.hasOwn(current, prop) || override) {
-                current = current[prop] = {};
-                continue;
-            }
-
-            current = current[prop];
-        }
-
-        current[props[props.length - 1]] = value;
-    }
-
     /**
      * Safely retrieves a nested property from an object using a string path.
      * Supports special wildcards for arrays ('[]') and objects ('{}' or '*').
@@ -401,8 +518,6 @@
         }
 
         const props = chain.split(".");
-        // const props = propChain.match(/'[^']*'|"[^"]*"|\[[^\]]*]|\([^)]*\)|{[^}]*}|[^.()[\]{}\n]+/g);
-        // const props = parsePropChain(propChain);
         let current = obj;
 
         for (let i = 0; i < props.length; i++) {
@@ -411,8 +526,6 @@
             if (current === undefined || current === null) {
                 break;
             }
-
-            // console.log(current, prop);
 
             if (prop === "[]") {
                 i++;
@@ -541,12 +654,6 @@
         return Object.prototype.toString.call(val) === "[object Object]";
     }
 
-    // function compareProps(objToCompare, obj) {
-    // 	return Object.entries(obj).every(([prop, value]) => {
-    // 		return Object.hasOwn(objToCompare, prop) && objToCompare[prop] === value;
-    // 	});
-    // }
-
     /**
      * Checks if all properties and their values in the targetObject exist and are equal in the referenceObject.
      * @param {Object} referenceObject The object to compare against.
@@ -568,6 +675,12 @@
         return true;
     }
 
+    /**
+     * Checks if a value reference exists within a list of values.
+     * @param {*} valueReference The value to check for.
+     * @param {...*} values The list of values.
+     * @returns {boolean} True if the value reference is found, otherwise false.
+     */
     function containsValue(valueReference, ...values) {
         for (const value of values) {
             if (valueReference === value) return true;
@@ -593,9 +706,6 @@
      * @returns {string} The type of the value (e.g., 'string', 'array', 'object', 'class', 'null').
      */
     function valType(val) {
-        if (val?.prototype?.constructor === val) {
-            return "class";
-        }
         return Object.prototype.toString.call(val).slice(8, -1).toLowerCase();
     }
 
@@ -687,6 +797,49 @@
     }
 
     /**
+     * Creates a manager for a dynamic stylesheet, allowing for easy updates.
+     * @param {string} id A unique identifier for the stylesheet.
+     * @returns {object} An object with methods to manage the stylesheet.
+     */
+    function createStyleManager(id) {
+        const styleElement = document.createElement("style");
+        styleElement.id = id;
+        document.head.appendChild(styleElement);
+
+        let currentStyle = "";
+
+        return {
+            /**
+             * Adds or updates the stylesheet content.
+             * @param {string} css The CSS string to apply.
+             */
+            set(css) {
+                currentStyle = css;
+                styleElement.textContent = currentStyle;
+            },
+
+            /**
+             * Toggles the stylesheet on or off.
+             * @param {boolean} enable If true, the stylesheet is enabled. Otherwise, it is disabled.
+             */
+            toggle(enable) {
+                if (enable) {
+                    styleElement.textContent = currentStyle;
+                } else {
+                    styleElement.textContent = "";
+                }
+            },
+
+            /**
+             * Removes the stylesheet from the DOM.
+             */
+            remove() {
+                styleElement.remove();
+            },
+        };
+    }
+
+    /**
      * Intercepts calls to an object's method using a Proxy, allowing modification of its behavior.
      * @param {object} owner The object that owns the method.
      * @param {string} methodName The name of the method to hook.
@@ -695,13 +848,11 @@
      */
     function hook(owner, methodName, handler) {
         const originalMethod = owner[methodName];
-
-        // if (typeof originalMethod !== "function") {
-        //  throw new Error(`[UST.patch] The method “${methodName}” was not found in the object "${owner}".`);
-        // }
+        if (typeof originalMethod !== "function") {
+            throw new Error(`[UST.patch] The method “${methodName}” was not found in the object "${owner}".`);
+        }
 
         const proxy = new Proxy(originalMethod, handler);
-
         owner[methodName] = proxy;
 
         return () => {
@@ -739,9 +890,7 @@
          */
         init() {
             const exec = (currentUrl) => {
-                const ruleFound = this._onUrlRules.find((rule) =>
-                    rule.isRegex ? rule.pattern.test(currentUrl) : rule.pattern === currentUrl,
-                );
+                const ruleFound = this._onUrlRules.find((rule) => (rule.isRegex ? rule.pattern.test(currentUrl) : rule.pattern === currentUrl));
 
                 if (ruleFound) {
                     ruleFound.func();
@@ -941,7 +1090,7 @@
      * @returns {NodeListOf<Element>} The list of nodes found.
      */
     function each(selector, func) {
-        const nodes = document.querySelectorAll(selector);
+        const nodes = queryAll(document, selector);
         for (const node of nodes) {
             func(node);
         }
@@ -963,14 +1112,31 @@
      * Creates a debounced version of a function that delays its execution until after a certain time has passed
      * without it being called.
      * @param {function} func The function to debounce.
-     * @param {number} wait The debounce delay in milliseconds.
+     * @param {number} delay The debounce delay in milliseconds.
      * @returns {function} The new debounced function.
      */
-    function debounce(func, wait) {
+    function debounce(func, delay) {
         let timeout;
         return function (...args) {
             clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
+            timeout = setTimeout(() => func.apply(this, args), delay);
+        };
+    }
+
+    /**
+     * Creates a throttled version of a function that only executes once per specified delay.
+     * @param {Function} func - The function to throttle.
+     * @param {number} delay - The number of milliseconds to wait before allowing the next execution.
+     * @returns {Function} A throttled function that invokes `func` at most once every `delay` milliseconds.
+     */
+    function throttle(func, delay) {
+        let lastExecutedTime = 0;
+        return function (...args) {
+            const now = Date.now();
+            if (now - lastExecutedTime >= delay) {
+                func.apply(this, args);
+                lastExecutedTime = now;
+            }
         };
     }
 
@@ -1001,9 +1167,7 @@
                 return null;
             }
 
-            return template.replace(/\{\{(\s*\w+\s*)\}\}/g, (match, placeholder) =>
-                Object.hasOwn(data, placeholder) ? data[placeholder] : match,
-            );
+            return template.replace(/\{\{(\s*\w+\s*)\}\}/g, (match, placeholder) => (Object.hasOwn(data, placeholder) ? data[placeholder] : match));
         }
 
         /**
@@ -1125,6 +1289,24 @@
     }
 
     /**
+     * Adds an event listener that runs during the capturing phase, allowing you to
+     * intercept and manipulate events before they reach normal bubbling listeners.
+     *
+     * @param {EventTarget} target The element or object (e.g., `window` or `document`)
+     * to listen for the event on.
+     * @param {string} eventType The type of event to intercept (e.g., 'click', 'keydown').
+     * @param {function(Event): void} callback The callback function to execute.
+     * @returns {function(): void} A cleanup function to remove the event listener.
+     */
+    function interceptEvent(target, eventType, callback) {
+        target.addEventListener(eventType, callback, true);
+
+        return () => {
+            target.removeEventListener(eventType, callback, true);
+        };
+    }
+
+    /**
      * Creates a DocumentFragment and populates it using a callback.
      * This is useful for building a piece of DOM in memory before attaching it to the live DOM.
      * @param {function(DocumentFragment): void} builderCallback A function that receives a document fragment and can append nodes to it.
@@ -1159,20 +1341,143 @@
         }
     }
 
+    /**
+     * Gets the currently focused element, traversing into Shadow DOMs.
+     * @param {Document} [doc=document] The document to start the search from.
+     * @returns {Element|null} The active element or null.
+     */
+    function getDeepActiveElement(doc = document) {
+        let activeElement = doc.activeElement;
+
+        while (activeElement?.shadowRoot?.activeElement) {
+            activeElement = activeElement.shadowRoot.activeElement;
+        }
+
+        return activeElement;
+    }
+
+    /**
+     * Gets the element at a specific coordinate, traversing into Shadow DOMs.
+     * @param {Document} [doc=document] The document to start the search from.
+     * @param {number} x The x-coordinate.
+     * @param {number} y The y-coordinate.
+     * @returns {Element|null} The element at the coordinates or null.
+     */
+    function getDeepElementFromPoint(doc = document, x, y) {
+        let elementInPoint = doc.elementFromPoint(x, y);
+
+        while (elementInPoint?.shadowRoot?.elementFromPoint) {
+            elementInPoint = elementInPoint.shadowRoot.elementFromPoint(x, y);
+        }
+
+        return elementInPoint;
+    }
+
+    /**
+     * Sets the value of an input element and dispatches a native input event.
+     * @param {HTMLInputElement} input The input element.
+     * @param {*} value The value to set.
+     */
+    function setInputNativeValue(input, value) {
+        const prototype = Object.getPrototypeOf(input);
+        const valueSetter = Object.getOwnPropertyDescriptor(prototype, "value").set;
+
+        valueSetter.call(input, value);
+
+        const event = new Event("input", { bubbles: true });
+        input.dispatchEvent(event);
+    }
+
+    /**
+     * Simulates a user typing a string into an input element.
+     * @param {HTMLInputElement} inputElement The input element to type into.
+     * @param {string} text The string to type.
+     */
+    function simulateTyping(inputElement, text) {
+        let i = 0;
+        let currentText = "";
+
+        inputElement.focus();
+
+        while (i < text.length) {
+            const char = text[i];
+            i++;
+            currentText += char;
+
+            const keyDownEvent = new KeyboardEvent("keydown", {
+                key: char,
+                code: `Key${char.toUpperCase()}`,
+                char: char,
+                keyCode: char.charCodeAt(0),
+                bubbles: true,
+            });
+            inputElement.dispatchEvent(keyDownEvent);
+
+            const inputEvent = new InputEvent("input", { bubbles: true, data: char, inputType: "insertText", isComposing: false });
+            setInputNativeValue(inputElement, currentText);
+            inputElement.dispatchEvent(inputEvent);
+
+            const keyUpEvent = new KeyboardEvent("keyup", {
+                key: char,
+                code: `Key${char.toUpperCase()}`,
+                char: char,
+                keyCode: char.charCodeAt(0),
+                bubbles: true,
+            });
+            inputElement.dispatchEvent(keyUpEvent);
+        }
+    }
+
+    /**
+     * Registers a global keyboard shortcut (hotkey).
+     * @param {string} keys A string representing the key combination (e.g., 'ctrl+shift+s').
+     * @param {function(KeyboardEvent): void} callback The function to execute when the hotkey is pressed.
+     * @returns {function(): void} A function to unregister the hotkey.
+     */
+    function createHotkeys(keys, callback) {
+        const keyParts = new Set(keys.toLowerCase().split("+"));
+
+        const handler = (event) => {
+            const activeElement = getDeepActiveElement();
+            if (activeElement && (["INPUT", "TEXTAREA"].includes(activeElement.tagName) || activeElement.isContentEditable === true)) {
+                return;
+            }
+
+            const pressedKeys = new Set();
+            if (event.ctrlKey) pressedKeys.add("ctrl");
+            if (event.altKey) pressedKeys.add("alt");
+            if (event.shiftKey) pressedKeys.add("shift");
+            pressedKeys.add(event.key.toLowerCase());
+
+            const isMatch = [...keyParts].every((key) => pressedKeys.has(key));
+
+            if (isMatch) {
+                event.preventDefault();
+                callback(event);
+            }
+        };
+
+        return interceptEvent(window, "keydown", handler);
+    }
+
     window.UST = window.UST || {};
 
     Object.assign(window.UST, {
         observe,
         OnElements,
         onElement,
+        getTextNodes,
+        getShadowRoots,
         queryAll,
         query,
         closest,
         injectScriptInline,
         waitElement,
         on,
+        storage,
+        setNestedValue,
+        getNestedValue,
         createDeepProxy,
-        safeSet,
         safeGet,
         handleArray,
         handleObject,
@@ -1185,6 +1490,7 @@
         update,
         loop,
         style,
+        createStyleManager,
         hook,
         watchUrl,
         watchLocation,
@@ -1194,10 +1500,17 @@
         each,
         chain,
         debounce,
+        throttle,
         sleep,
         templates,
         lazy,
+        interceptEvent,
         createFromFragment,
         withDetached,
+        getDeepActiveElement,
+        getDeepElementFromPoint,
+        setInputNativeValue,
+        simulateTyping,
+        createHotkeys,
     });
 })();
