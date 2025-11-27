@@ -7,10 +7,11 @@
 // @grant           GM_setValue
 // @grant           GM_getValue
 // @grant           GM_registerMenuCommand
+// @grant           GM_unregisterMenuCommand
 // @grant           GM_addValueChangeListener
 // @grant           GM_addStyle
 // @grant           GM_xmlhttpRequest
-// @version         0.5.2
+// @version         0.6.0
 // @run-at          document-start
 // @author          hdyzen
 // @description     tweaks redgifs embed/iframe video
@@ -19,8 +20,13 @@
 
 const domain = window.location.hostname;
 const isRootWindow = window.top === window.self;
+const autoClose = GM_info.scriptHandler !== "Violentmonkey";
 
 const commands = {
+    expandOptions: {
+        label: "Expand options",
+        state: false,
+    },
     autoplay: {
         label: "Autoplay",
         state: false,
@@ -79,12 +85,22 @@ const commands = {
     detectVideoPatching: {
         label: "Detect video patching native method",
         state: false,
-        applyEffect: () => {},
+        applyEffect: () => { },
     },
     reloadOnDemand: {
         label: "Reload iframes on demand",
         state: false,
         applyEffect: reloadOnDemandControl,
+    },
+    lazyIframes: {
+        label: "Lazy load iframes",
+        state: false,
+        applyEffect: lazyIframesControl,
+    },
+    noPreloadVideo: {
+        label: "No preload videos",
+        state: false,
+        applyEffect: noPreloadVideoControl,
     },
 };
 
@@ -113,7 +129,14 @@ function loadCommands() {
         const label = command.label;
         const state = command.state;
 
-        GM_registerMenuCommand(`${state ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, state), { id: key, autoClose: false });
+        if (key === "expandOptions") {
+            GM_registerMenuCommand(`${state ? "⧮" : "⧯"} ${label}:`, () => toggleExpand(key, state), { id: key, autoClose });
+
+            if (state === true) break;
+            continue;
+        }
+
+        GM_registerMenuCommand(`${state ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, state), { id: key, autoClose });
     }
 }
 
@@ -121,10 +144,29 @@ function toggleCommand(key, state) {
     const command = commands[key];
     const label = command.label;
     const newState = !state;
-    GM_registerMenuCommand(`${newState ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, newState), { id: key, autoClose: false });
+    GM_registerMenuCommand(`${newState ? "⧯" : "⧮"} ${label}`, () => toggleCommand(key, newState), { id: key, autoClose });
 
     GM_setValue(key, newState);
     GM_setValue("reload", Math.random());
+}
+
+function toggleExpand(key, state) {
+    const command = commands[key];
+    const label = command.label;
+    const newState = !state;
+    GM_registerMenuCommand(`${newState ? "⧮" : "⧯"} ${label}:`, () => toggleExpand(key, newState), { id: key, autoClose });
+
+    GM_setValue(key, newState);
+
+    if (!newState) {
+        loadCommands();
+        return;
+    }
+
+    for (const keyCmd in commands) {
+        if (keyCmd === key) continue;
+        GM_unregisterMenuCommand(keyCmd);
+    }
 }
 
 async function initVideo() {
@@ -132,11 +174,11 @@ async function initVideo() {
         for (const key in commands) {
             const state = GM_getValue(key, commands[key].state);
 
-            commands[key].applyEffect(video, state);
+            commands[key].applyEffect?.(video, state);
         }
     };
 
-    if (commands.detectVideoPatching.state === true) {
+    const applyViaPatch = () => {
         const originalCreateElement = Document.prototype.createElement;
 
         Document.prototype.createElement = new Proxy(originalCreateElement, {
@@ -150,21 +192,23 @@ async function initVideo() {
                 return result;
             },
         });
+    };
+
+    const applyViaObserver = async () => {
+        const observer = new MutationObserver((_, observer) => {
+            const video = document.querySelector("video[src]:not([src=''])");
+            if (video) {
+                observer.disconnect();
+                applyCommands(video);
+            }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    };
+
+    if (commands.detectVideoPatching.state === true) {
+        applyViaPatch();
     } else {
-        const getVideo = async () => {
-            return new Promise((resolve) => {
-                const observer = new MutationObserver((_, observer) => {
-                    const video = document.querySelector("video[src]:not([src=''])");
-                    if (video) {
-                        observer.disconnect();
-                        resolve(video);
-                    }
-                });
-                observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-            });
-        };
-        const video = await getVideo();
-        applyCommands(video);
+        applyViaObserver();
     }
 }
 
@@ -194,7 +238,7 @@ function loopControl(video, state) {
 async function volumeSliderControl(video, state) {
     if (!state) return;
 
-    const volumeContainer = document.querySelector(".buttons:has(> div > .soundOff,> div > .soundOn)");
+    const volumeContainer = document.querySelector(".SoundButton");
     if (!volumeContainer) return;
 
     const inputElement = document.createElement("input");
@@ -205,10 +249,13 @@ async function volumeSliderControl(video, state) {
     inputElement.step = 0.01;
     inputElement.value = GM_getValue("volume", 0);
 
+    inputElement.style.setProperty("--val", (inputElement.value * 100) + "%");
     inputElement.oninput = (e) => {
         const volume = e.target.value;
         updateVolumeUI(video, volume);
+        e.target.style.setProperty("--val", (volume * 100) + "%");
     };
+    inputElement.onclick = (e) => e.stopImmediatePropagation();
     inputElement.onmouseup = (e) => e.stopImmediatePropagation();
 
     volumeContainer.appendChild(inputElement);
@@ -226,12 +273,12 @@ async function saveSettingsControl(video, state) {
 
     const enableSoundValue = GM_getValue("enableSound");
     if (enableSoundValue) {
-        click(document.querySelector(".soundOff"));
+        click(document.querySelector("[aria-label='Sound Off']"));
     }
 
     const enableHDValue = GM_getValue("enableHD");
     if (enableHDValue) {
-        click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+        click(document.querySelector(".gifQualityButton"));
     }
 
     const volumeValue = GM_getValue("volume", 1);
@@ -241,25 +288,25 @@ async function saveSettingsControl(video, state) {
 }
 
 function detectButtonsClick() {
-    const buttons = document.querySelector(".buttons");
+    const buttons = document.querySelector(".sidebar");
 
     buttons.onclick = (ev) => {
-        const button = ev.target.closest("div.button");
+        const button = ev.target.closest("button");
         if (!button) return;
 
-        if (button.matches(":has(.soundOff)")) {
+        if (button.matches("[aria-label='Sound Off']")) {
             GM_setValue("enableSound", true);
             return;
         }
-        if (button.matches(":has(.soundOn)")) {
+        if (button.matches("[aria-label='Sound On']")) {
             GM_setValue("enableSound", false);
             return;
         }
-        if (button.matches(":has(.gifQuality [d^='M1 12C1'])")) {
+        if (button.matches(".gifQualityButton:has([d^='M1 12C1'])")) {
             GM_setValue("enableHD", true);
             return;
         }
-        if (button.matches(":has(.gifQuality [d^='M1.16712'])")) {
+        if (button.matches(".gifQualityButton:has([d^='M1.16712'])")) {
             GM_setValue("enableHD", false);
             return;
         }
@@ -271,20 +318,20 @@ function syncSettingsControl(video, state) {
 
     GM_addValueChangeListener("enableSound", (_name, _oldValue, newValue) => {
         if (newValue) {
-            click(document.querySelector(".soundOff"));
+            click(document.querySelector("[aria-label='Sound Off']"));
             return;
         }
 
-        click(document.querySelector(".soundOn"));
+        click(document.querySelector("[aria-label='Sound On']"));
     });
 
     GM_addValueChangeListener("enableHD", (_name, _oldValue, newValue) => {
         if (newValue) {
-            click(document.querySelector(".gifQuality:has([d^='M1 12C1'])"));
+            click(document.querySelector(".gifQualityButton:has([d^='M1 12C1'])"));
             return;
         }
 
-        click(document.querySelector(".gifQuality:has([d^='M1.16712'])"));
+        click(document.querySelector(".gifQualityButton:has([d^='M1.16712'])"));
     });
 
     GM_addValueChangeListener("volume", (_name, _oldValue, volume) => {
@@ -303,7 +350,7 @@ function pauseWhenHiddenControl(video, state) {
         }
     };
     const observer = new IntersectionObserver(handleIntersection, {
-        threshold: 0.6,
+        threshold: 0.85,
     });
 
     observer.observe(video);
@@ -417,6 +464,42 @@ function reloadOnDemandControl(_video, state) {
     });
 }
 
+function lazyIframesControl(_video, state) {
+    if (!state) return;
+
+    if (window.name === "__lazy_iframe__") return;
+
+    document.open();
+    document.write(`
+        <iframe
+            name="__lazy_iframe__"
+            loading="lazy"
+            style="border:none; width:100%; height:100vh;"
+            src="${location.href}"
+        ></iframe>
+        <style>* { margin: 0; padding: 0; background: #000; }</style>
+    `);
+    document.close();
+}
+
+function noPreloadVideoControl(video, state) {
+    if (!state) return;
+
+    video.preload = "none";
+
+    const { hd, sd } = unsafeWindow.__ret_gif_urls__;
+    const src = GM_getValue("enableHD") ? hd : sd;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+
+    video.src = src;
+    Object.defineProperty(video, "src", {
+        set() {
+            originalDescriptor.set.call(this, src);
+            return src;
+        },
+    });
+}
+
 async function downloadAsBlob(vUrl, downloadElementEntry) {
     if (!isRootWindow) {
         return unsafeWindow.parent.postMessage({ redgifsURL: vUrl }, "*");
@@ -439,6 +522,7 @@ async function downloadAsBlob(vUrl, downloadElementEntry) {
             onload(event) {
                 const url = URL.createObjectURL(event.response);
                 const link = document.createElement("a");
+
                 const nameVideo = vUrl.split("/").at(-1);
 
                 link.href = url;
@@ -466,13 +550,13 @@ function addDownloadEntries(arr) {
                 <path d="M3 10V16C3 17.6569 4.34315 19 6 19M18 5C18 3.34315 16.6569 2 15 2H11C7.22876 2 5.34315 2 4.17157 3.17157C3.51839 3.82475 3.22937 4.69989 3.10149 6" stroke-width="1.5" stroke-linecap="round" stroke="#fff"/>
             </svg>
         </i>
-        `;
+    `;
     const downloadButton = document.createElement("div");
     const downloadEntry = arr.map((e) => `<div class="download-entry" data-url="${e[1]}"><span class="download-dw">${e[0]}</span>${copySvg}</div>`).join("\n");
     downloadButton.id = "downloadOpen";
 
     downloadButton.innerHTML = `
-        <svg class="download-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+        <svg class="download-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
             <path d="M12.5535 16.5061C12.4114 16.6615 12.2106 16.75 12 16.75C11.7894 16.75 11.5886 16.6615 11.4465 16.5061L7.44648 12.1311C7.16698 11.8254 7.18822 11.351 7.49392 11.0715C7.79963 10.792 8.27402 10.8132 8.55352 11.1189L11.25 14.0682V3C11.25 2.58579 11.5858 2.25 12 2.25C12.4142 2.25 12.75 2.58579 12.75 3V14.0682L15.4465 11.1189C15.726 10.8132 16.2004 10.792 16.5061 11.0715C16.8118 11.351 16.833 11.8254 16.5535 12.1311L12.5535 16.5061Z" fill="#fff"/>
             <path d="M3.75 15C3.75 14.5858 3.41422 14.25 3 14.25C2.58579 14.25 2.25 14.5858 2.25 15V15.0549C2.24998 16.4225 2.24996 17.5248 2.36652 18.3918C2.48754 19.2919 2.74643 20.0497 3.34835 20.6516C3.95027 21.2536 4.70814 21.5125 5.60825 21.6335C6.47522 21.75 7.57754 21.75 8.94513 21.75H15.0549C16.4225 21.75 17.5248 21.75 18.3918 21.6335C19.2919 21.5125 20.0497 21.2536 20.6517 20.6516C21.2536 20.0497 21.5125 19.2919 21.6335 18.3918C21.75 17.5248 21.75 16.4225 21.75 15.0549V15C21.75 14.5858 21.4142 14.25 21 14.25C20.5858 14.25 20.25 14.5858 20.25 15C20.25 16.4354 20.2484 17.4365 20.1469 18.1919C20.0482 18.9257 19.8678 19.3142 19.591 19.591C19.3142 19.8678 18.9257 20.0482 18.1919 20.1469C17.4365 20.2484 16.4354 20.25 15 20.25H9C7.56459 20.25 6.56347 20.2484 5.80812 20.1469C5.07435 20.0482 4.68577 19.8678 4.40901 19.591C4.13225 19.3142 3.9518 18.9257 3.85315 18.1919C3.75159 17.4365 3.75 16.4354 3.75 15Z" fill="#fff"/>
         </svg>
@@ -519,6 +603,7 @@ function patchJSONParse() {
         const result = originalJParse.call(JSON, text, reviver);
         if (result.gif) {
             const urls = Object.entries(result.gif.urls);
+            unsafeWindow.__ret_gif_urls__ = result.gif.urls;
             const ext = urls.map(([n, u]) => [`${u.split(".").at(-1)} - ${n}`, u]).sort();
 
             addDownloadEntries(ext);
@@ -528,29 +613,98 @@ function patchJSONParse() {
     };
 }
 
+// Fix for fullscreen button, enter/leave fullscreen, instead open redgifs page.
+const onClick = (event) => {
+    const FS_BUTTON = event.target.closest(".FSButton");
+    if (FS_BUTTON) {
+        event.stopImmediatePropagation();
+        document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    }
+};
+document.addEventListener("click", onClick, true);
+
 GM_addStyle(`
-#root > .App .embeddedPlayer .buttons > input {
+:root {
+    --volume-slider-clr: #8e18ee;
+    --volume-track-bg: rgba(255, 255, 255, 0.2);
+    --volume-thumb-bg: #ffffff;
+}
+
+.SoundButton {
+    position: relative !important;
+}
+#root > .App .embeddedPlayer .SoundButton > input {
     display: none;
     position: absolute;
-    top: -7px;
-    padding: .5rem;
-    right: calc(100% - 5px);
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
     width: 120px;
+    height: 30px;
     background: none;
     border-radius: .5rem;
-
-    &::-moz-range-progress {
-        background: #8e18ee;
-        height: .5rem;
-        border-radius: 0.25rem;
-    }
-    &::-moz-range-track {
-        background: #fff;
-        height: .5rem;
-        border-radius: 0.3rem;
-    }
+    padding-right: 10px;
+    box-sizing: content-box;
 }
-#root > .App .embeddedPlayer .buttons:has(.soundOn:hover, .soundOff:hover) > input, .buttons > input:hover {
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+}
+input[type=range]:focus {
+  outline: none;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: linear-gradient(to right, var(--volume-slider-clr) 0%, var(--volume-slider-clr) var(--val, 0%), var(--volume-track-bg) var(--val, 0%), var(--volume-track-bg) 100%);
+  border: none;
+  border-radius: 3px;
+}
+input[type=range]::-webkit-slider-thumb {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  border: none;
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  background: var(--volume-thumb-bg);
+  cursor: pointer;
+  -webkit-appearance: none;
+  margin-top: -4px;
+  transition: transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+input[type=range]::-moz-range-progress {
+  height: 6px;
+  background-color: var(--volume-slider-clr);
+  border-radius: 3px;
+}
+input[type=range]::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: var(--volume-track-bg);
+  border-radius: 3px;
+  border: none;
+}
+input[type=range]::-moz-range-thumb {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  border: none;
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  background: var(--volume-thumb-bg);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type=range]::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+#root > .App .embeddedPlayer .SoundButton:hover > input, .SoundButton > input:hover {
     display: block !important;
 }
 html:has(> head > meta[property="og:site_name"][content="RedGIFs"]) .ret-hidden {
@@ -561,7 +715,7 @@ html:has(> head > meta[property="og:site_name"][content="RedGIFs"]) .ret-hidden 
 #downloadOpen {
     display: none;
     position: fixed; 
-    bottom: 2rem; 
+    top: 1rem; 
     right: 1rem; 
     user-select: none;
 
@@ -572,9 +726,9 @@ html:has(> head > meta[property="og:site_name"][content="RedGIFs"]) .ret-hidden 
 }
 #download-dropdown {
     position: absolute;
-    bottom: 100%;
+    top: 0;
+    right: 2.5rem;
     padding: 10px;
-    right: 0;
     background: rgb(6, 6, 20);
     margin-bottom: .5rem;
     border-radius: .75rem;
