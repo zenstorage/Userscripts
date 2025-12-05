@@ -3,40 +3,42 @@
 // @namespace           https://greasyfork.org/users/821661
 // @match               https://www.redgifs.com/*
 // @exclude-match       https://www.redgifs.com/ifr/*
-// @grant               GM.addStyle
-// @grant               GM.download
-// @grant               GM.xmlHttpRequest
+// @grant               GM_addStyle
+// @grant               GM_xmlhttpRequest
 // @run-at              document-start
-// @require             https://update.greasyfork.org/scripts/526417/1534658/USToolkit.js
-// @version             0.4.7
+// @version             0.5.0
 // @author              hdyzen
 // @description         tweaks for redgifs page
 // @license             MIT
 // @noframes
 // ==/UserScript==
 
-const urlsMap = new Map();
+const gifsURLS = new Map();
 
 function observerInit() {
     const mutationsHandler = (mutations) => {
         for (const mutation of mutations) {
             if (mutation.type === "attributes" && mutation.target.classList.contains("GifPreview")) {
-                const sidebar = mutation.target.querySelector(".SideBar");
+                const likeButton = mutation.target.querySelector(".sideBarItem:has(.LikeButton)");
 
-                if (!sidebar || sidebar.querySelector(".download-button")) {
-                    return;
+                if (!likeButton || likeButton.nextElementSibling.querySelector(".download-button")) return;
+
+                const gifID = mutation.target.getAttribute("data-feed-item-id");
+                if (!gifID) {
+                    throw new Error("Gif ID not found!");
                 }
 
-                const gifID = mutation.target.id.split("_")[1];
+                likeButton.insertAdjacentHTML("afterend", getDownloadButton(gifID));
 
-                sidebar.insertAdjacentHTML("beforeend", getDownloadButton(gifID));
+                const entriesDL = likeButton.nextElementSibling.querySelectorAll("[data-url]");
+                addListenerToEntries(entriesDL);
             }
         }
     };
 
     const observer = new MutationObserver(mutationsHandler);
 
-    observer.observe(document.documentElement || document.body, {
+    observer.observe(document.documentElement, {
         subtree: true,
         attributes: true,
         attributeFilter: ["class"],
@@ -54,7 +56,7 @@ function patchJSONParse() {
             result.gifs = result.gifs.filter((gif) => {
                 if (gif.cta !== null) return false;
 
-                urlsMap.set(gif.id, gif.urls);
+                gifsURLS.set(gif.id, gif.urls);
                 return true;
             });
         }
@@ -64,86 +66,111 @@ function patchJSONParse() {
 }
 patchJSONParse();
 
-unsafeWindow.download = downloadAsBlob;
+function addListenerToEntries(entries) {
+    for (const entry of entries) {
+        entry.addEventListener("click", downloadAsBlob);
+    }
+}
 
 async function downloadAsBlob(ev) {
-    const vUrl = ev.target.getAttribute("url");
+    const vUrl = ev.target.dataset.url;
+    const abort = ev.target._abortReq?.abort;
 
-    try {
-        const res = await GM.xmlHttpRequest({
+    if (abort) abort();
+
+    const dlPromise = new Promise((resolve, reject) => {
+        const req = GM_xmlhttpRequest({
+            method: "GET",
             url: vUrl,
             responseType: "blob",
-            onprogress(evp) {
-                const loaded = (evp.loaded / evp.total) * 100;
+
+            onload: (res) => resolve(res),
+            onerror: (err) => reject(err),
+            onabort: () => reject(new Error("aborted")),
+
+            onprogress(evt) {
+                const loaded = (evt.loaded / evt.total) * 100;
                 const progress = (loaded / 100) * ev.target.offsetWidth;
 
                 ev.target.style.boxShadow = `${progress}px 0 0 0 rgba(192, 28, 119, 0.5) inset`;
             },
         });
 
-        const url = URL.createObjectURL(res.response);
-        const link = document.createElement("a");
-        const nameVideo = vUrl.split("/").at(-1);
+        ev.target._abortReq = req;
+    });
 
-        link.href = url;
-        link.download = nameVideo;
+    try {
+        const res = await dlPromise;
+        const blobUrl = URL.createObjectURL(res.response);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = vUrl.split("/").at(-1);
 
         document.body.appendChild(link);
-
         link.click();
-
         document.body.removeChild(link);
-
-        URL.revokeObjectURL(url);
-    } catch (error) {
-        console.log("Error downloading video:", error);
+        URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+        console.log("Erro on download:", err);
     }
 }
 
 function getDownloadButton(gifID) {
-    const urls = urlsMap.get(gifID);
-    const entries = Object.entries(urls);
-    const buttons = entries
-        .filter(([key]) => key !== "html")
-        .sort()
-        .map(([key, value]) => `<button onclick="download(event)" url="${value}" class="item">${key}</button>`);
+    const gifURLS = gifsURLS.get(gifID);
+    let buttonsHTML = "";
+    const buttonsOrders = {
+        hd: "0",
+        sd: "1",
+        silent: "2",
+        poster: "3",
+        thumbnail: "4",
+    };
 
-    const html = `
-    <div class="download-button">
-        <label for="${gifID}" class="icon">
-            <svg xmlns="http://www.w3.org/2000/svg" class="ionicon" viewBox="0 0 512 512" width="28">
-                <path d="M336 176h40a40 40 0 0140 40v208a40 40 0 01-40 40H136a40 40 0 01-40-40V216a40 40 0 0140-40h40"
-                    fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32">
-                </path>
-                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"
-                    d="M176 272l80 80 80-80M256 48v288"></path>
-            </svg>
-        </label>
-        <input type="checkbox" name="${gifID}" id="${gifID}" hidden>
-        <div class="list">
-            ${buttons.join("")}
-        </div >
-    </div >
+    for (const key in gifURLS) {
+        if (key === "html") continue;
+
+        buttonsHTML += `<button data-url="${gifURLS[key]}" style="order: ${buttonsOrders[key] || "5"}" class="item">${key}</button>`;
+    }
+
+    const sidebarItem = `
+        <li class="sideBarItem">
+            <div class="download-button">
+                <label for="${gifID}" class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="ionicon" viewBox="0 0 512 512" width="42">
+                        <path d="M336 176h40a40 40 0 0140 40v208a40 40 0 01-40 40H136a40 40 0 01-40-40V216a40 40 0 0140-40h40"
+                            fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32">
+                        </path>
+                        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"
+                            d="M176 272l80 80 80-80M256 48v288"></path>
+                    </svg>
+                </label>
+                <input type="checkbox" name="${gifID}" id="${gifID}" hidden>
+                <div class="list">
+                    ${buttonsHTML}
+                </div >
+            </div >
+        </li>
     `;
 
-    return html;
+    return sidebarItem;
 }
 
-GM.addStyle(`
+GM_addStyle(`
     /* Annoyances */
-    .bannerWrapper, .SideBar-Item:has(> [class*="liveAdButton"]) {
+    .sideBarItem:has(.liveAdButton), .InformationBar_ishalloween {
         display: none !important;
     }
-    .bannerWrapper, div:has(> ._aTab_17ta5_1) {
+    .topNav-wrap > div:not([class]), .OnlyFansCreatorsSidebar {
         visibility: hidden !important;
         opacity: 0 !important;
     }
-
     /* Download button/list */
     .download-button {
         position: relative;
-        height: 28px;
-        width: 28px;
+    }
+    .download-button svg {
+        width: 42px !important;
+        height: 42px !important;
     }
     .download-button .icon {
         background: none;
@@ -166,7 +193,7 @@ GM.addStyle(`
         background: rgb(10, 10, 10, .8);
         backdrop-filter: blur(20px);
         position: absolute;
-        top: 100%;
+        bottom: 0;
         right: 100%;
         width: max-content;
         border-radius: 0.75rem;
